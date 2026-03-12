@@ -7,6 +7,7 @@ interface Session {
   title: string;
   is_active: boolean;
   created_at: string;
+  creator_name?: string;
 }
 
 export function SessionListPage() {
@@ -88,6 +89,7 @@ export function SessionListPage() {
                   <div className="title">{s.title}</div>
                   <div className="meta">
                     Created {new Date(s.created_at + 'Z').toLocaleDateString()}
+                    {s.creator_name && ` by ${s.creator_name}`}
                     {!s.is_active && ' (Closed)'}
                   </div>
                 </div>

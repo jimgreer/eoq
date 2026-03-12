@@ -100,6 +100,10 @@ export function ReviewPage() {
 
   return (
     <>
+      <div className="review-subheader">
+        <span className="review-session-title">{session.title}</span>
+        {!session.is_active && <span className="review-session-closed">Closed</span>}
+      </div>
       <div className="review-layout">
         <div className="document-panel">
           <DocumentViewer

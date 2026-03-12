@@ -173,10 +173,41 @@ body {
   margin-top: 4px;
 }
 
+/* Review sub-header */
+.review-subheader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 24px;
+  background: #f1f3f4;
+  border-bottom: 1px solid #dadce0;
+  font-size: 14px;
+}
+
+.review-session-title {
+  font-weight: 500;
+  color: #202124;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-session-closed {
+  background: #dadce0;
+  color: #5f6368;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
 /* Review page layout */
 .review-layout {
   display: flex;
-  height: calc(100vh - 57px);
+  height: calc(100vh - 57px - 37px);
 }
 
 .document-panel {
@@ -404,4 +435,105 @@ body {
   height: 100vh;
   color: #5f6368;
   font-size: 16px;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  /* Header */
+  .app-header {
+    padding: 8px 12px;
+  }
+
+  .app-header h1 {
+    font-size: 15px;
+  }
+
+  .app-header .user-info span {
+    display: none;
+  }
+
+  .app-header .user-info {
+    gap: 6px;
+  }
+
+  /* Review sub-header */
+  .review-subheader {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  /* Admin / session list page */
+  .admin-page {
+    margin: 20px auto;
+    padding: 0 12px;
+  }
+
+  .admin-page h2 {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .upload-form {
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .instructions {
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+
+  .instructions ol {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .session-card {
+    padding: 12px 14px;
+  }
+
+  /* Review layout - stack vertically on mobile */
+  .review-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 57px - 37px);
+  }
+
+  .document-panel {
+    padding: 16px;
+    overflow-y: visible;
+    min-height: 50vh;
+  }
+
+  .comment-sidebar {
+    width: 100%;
+    border-left: none;
+    border-top: 2px solid #dadce0;
+    min-height: 40vh;
+  }
+
+  /* Comment dialog */
+  .comment-input-dialog {
+    width: calc(100vw - 32px);
+    max-width: 400px;
+  }
+
+  .comment-input-overlay {
+    padding: 16px;
+  }
+
+  /* Selection popover */
+  .selection-popover {
+    font-size: 14px;
+    padding: 8px 16px;
+  }
+
+  /* Reply form */
+  .reply-form {
+    flex-direction: column;
+  }
+
+  .reply-form input {
+    width: 100%;
+  }
 }

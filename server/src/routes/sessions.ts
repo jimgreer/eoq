@@ -44,7 +44,10 @@ function extractBody(html: string): string {
 // List sessions
 router.get('/', requireAuth, (_req, res) => {
   const sessions = db.prepare(
-    'SELECT id, title, is_active, created_at, created_by FROM review_sessions ORDER BY created_at DESC'
+    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, u.display_name AS creator_name
+     FROM review_sessions rs
+     LEFT JOIN users u ON rs.created_by = u.id
+     ORDER BY rs.created_at DESC`
   ).all();
   res.json(sessions);
 });
@@ -84,7 +87,10 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
   ).run(id, title, processed, user.id);
 
   const session = db.prepare(
-    'SELECT id, title, is_active, created_at FROM review_sessions WHERE id = ?'
+    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, u.display_name AS creator_name
+     FROM review_sessions rs
+     LEFT JOIN users u ON rs.created_by = u.id
+     WHERE rs.id = ?`
   ).get(id);
 
   res.status(201).json(session);
