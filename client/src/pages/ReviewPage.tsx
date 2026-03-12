@@ -22,6 +22,7 @@ export function ReviewPage() {
   const { threads, addComment, resolveComment } = useComments(sessionId);
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'doc' | 'comments'>('doc');
 
   // Selection state
   const [pendingAnchor, setPendingAnchor] = useState<TextAnchor | null>(null);
@@ -54,6 +55,7 @@ export function ReviewPage() {
       await addComment({ body, anchor: pendingAnchor });
       setPendingAnchor(null);
       setShowDialog(false);
+      setMobileTab('comments');
       window.getSelection()?.removeAllRanges();
     },
     [pendingAnchor, addComment]
@@ -75,9 +77,24 @@ export function ReviewPage() {
 
   const handleHighlightClick = useCallback((threadId: string) => {
     setActiveThreadId(threadId);
-    // Scroll sidebar to the thread
-    const el = document.querySelector(`[data-thread-id="${threadId}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // On mobile, switch to comments tab
+    setMobileTab('comments');
+    setTimeout(() => {
+      const el = document.querySelector(`.comment-thread[data-thread-id="${threadId}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }, []);
+
+  const handleQuoteClick = useCallback((threadId: string) => {
+    setActiveThreadId(threadId);
+    setMobileTab('doc');
+    // Scroll to the highlight in the document after tab switch
+    setTimeout(() => {
+      const mark = document.querySelector(`mark.comment-highlight[data-thread-id="${threadId}"]`);
+      if (mark) {
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 50);
   }, []);
 
   // Clear popover on click outside
@@ -104,8 +121,25 @@ export function ReviewPage() {
         <span className="review-session-title">{session.title}</span>
         {!session.is_active && <span className="review-session-closed">Closed</span>}
       </div>
+
+      {/* Mobile tab bar */}
+      <div className="mobile-tab-bar">
+        <button
+          className={`mobile-tab ${mobileTab === 'doc' ? 'active' : ''}`}
+          onClick={() => setMobileTab('doc')}
+        >
+          Document
+        </button>
+        <button
+          className={`mobile-tab ${mobileTab === 'comments' ? 'active' : ''}`}
+          onClick={() => setMobileTab('comments')}
+        >
+          Comments{threads.length > 0 ? ` (${threads.length})` : ''}
+        </button>
+      </div>
+
       <div className="review-layout">
-        <div className="document-panel">
+        <div className={`document-panel ${mobileTab !== 'doc' ? 'mobile-hidden' : ''}`}>
           <DocumentViewer
             htmlContent={session.html_content}
             threads={threads}
@@ -120,6 +154,8 @@ export function ReviewPage() {
           onThreadClick={setActiveThreadId}
           onReply={handleReply}
           onResolve={resolveComment}
+          onQuoteClick={handleQuoteClick}
+          className={mobileTab !== 'comments' ? 'mobile-hidden' : ''}
         />
       </div>
 

@@ -11,6 +11,8 @@ interface Props {
   onThreadClick: (threadId: string) => void;
   onReply: (parentId: string, body: string) => void;
   onResolve: (commentId: string, resolved: boolean) => void;
+  onQuoteClick?: (threadId: string) => void;
+  className?: string;
 }
 
 export function CommentSidebar({
@@ -19,9 +21,11 @@ export function CommentSidebar({
   onThreadClick,
   onReply,
   onResolve,
+  onQuoteClick,
+  className,
 }: Props) {
   return (
-    <div className="comment-sidebar">
+    <div className={`comment-sidebar ${className || ''}`}>
       <div className="sidebar-header">
         Comments ({threads.length})
       </div>
@@ -39,6 +43,7 @@ export function CommentSidebar({
             onClick={() => onThreadClick(thread.id)}
             onReply={body => onReply(thread.id, body)}
             onResolve={() => onResolve(thread.id, !thread.resolved)}
+            onQuoteClick={onQuoteClick ? () => onQuoteClick(thread.id) : undefined}
           />
         ))}
       </div>
@@ -52,12 +57,14 @@ function CommentThread({
   onClick,
   onReply,
   onResolve,
+  onQuoteClick,
 }: {
   thread: Thread;
   isActive: boolean;
   onClick: () => void;
   onReply: (body: string) => void;
   onResolve: () => void;
+  onQuoteClick?: () => void;
 }) {
   const [replyText, setReplyText] = useState('');
   const [showReply, setShowReply] = useState(false);
@@ -72,10 +79,19 @@ function CommentThread({
   return (
     <div
       className={`comment-thread${isActive ? ' active' : ''}${thread.resolved ? ' resolved' : ''}`}
+      data-thread-id={thread.id}
       onClick={onClick}
     >
       {thread.anchor?.quote && (
-        <div className="comment-quote">
+        <div
+          className="comment-quote"
+          onClick={e => {
+            if (onQuoteClick) {
+              e.stopPropagation();
+              onQuoteClick();
+            }
+          }}
+        >
           "{thread.anchor.quote.length > 100
             ? thread.anchor.quote.slice(0, 100) + '...'
             : thread.anchor.quote}"
