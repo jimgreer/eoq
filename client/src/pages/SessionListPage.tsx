@@ -10,6 +10,7 @@ interface Session {
   created_at: string;
   created_by: number;
   creator_name?: string;
+  google_doc_id?: string | null;
 }
 
 export function SessionListPage() {
@@ -18,6 +19,7 @@ export function SessionListPage() {
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [googleDocUrl, setGoogleDocUrl] = useState('');
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -35,12 +37,16 @@ export function SessionListPage() {
     const formData = new FormData();
     formData.append('title', title);
     formData.append('file', file);
+    if (googleDocUrl.trim()) {
+      formData.append('google_doc_url', googleDocUrl.trim());
+    }
 
     try {
       const res = await api.post('/sessions', formData);
       setSessions(prev => [res.data, ...prev]);
       setTitle('');
       setFile(null);
+      setGoogleDocUrl('');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Upload failed');
     } finally {
@@ -71,6 +77,7 @@ export function SessionListPage() {
           <li>Open your Google Doc and go to <strong>File &rarr; Download &rarr; Web Page (.html)</strong></li>
           <li>Upload the HTML file below with a session title</li>
           <li>Share the review link with your team</li>
+          <li>Optionally paste the Google Doc URL to restrict access to people who can view the original doc</li>
           <li>Everyone can select text in the document and leave comments in real time</li>
         </ol>
       </div>
@@ -90,6 +97,12 @@ export function SessionListPage() {
           onChange={e => setFile(e.target.files?.[0] || null)}
           required
         />
+        <input
+          type="text"
+          placeholder="Google Doc URL (optional — restricts access to doc viewers)"
+          value={googleDocUrl}
+          onChange={e => setGoogleDocUrl(e.target.value)}
+        />
         <button className="btn btn-primary" type="submit" disabled={uploading}>
           {uploading ? 'Uploading...' : 'Create Session'}
         </button>
@@ -106,6 +119,7 @@ export function SessionListPage() {
                   <div className="meta">
                     Created {new Date(s.created_at + 'Z').toLocaleDateString()}
                     {s.creator_name && ` by ${s.creator_name}`}
+                    {s.google_doc_id && ' · Restricted'}
                     {!s.is_active && ' (Closed)'}
                   </div>
                 </div>

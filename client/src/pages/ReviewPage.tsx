@@ -19,6 +19,7 @@ export function ReviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState<{ needsDriveAuth: boolean } | null>(null);
   const { threads, addComment, resolveComment } = useComments(sessionId);
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -34,7 +35,12 @@ export function ReviewPage() {
     api
       .get(`/sessions/${sessionId}`)
       .then(res => setSession(res.data))
-      .catch(() => setSession(null))
+      .catch(err => {
+        if (err.response?.status === 403) {
+          setAccessDenied({ needsDriveAuth: err.response.data.needsDriveAuth });
+        }
+        setSession(null);
+      })
       .finally(() => setLoading(false));
   }, [sessionId]);
 
@@ -113,6 +119,28 @@ export function ReviewPage() {
   }, [popoverRect, showDialog]);
 
   if (loading) return <div className="loading">Loading...</div>;
+  if (accessDenied) {
+    const returnUrl = `/review/${sessionId}`;
+    return (
+      <div className="access-denied">
+        <h2>Access Restricted</h2>
+        <p>This session is linked to a Google Doc that you don't have access to.</p>
+        {accessDenied.needsDriveAuth ? (
+          <>
+            <p>To check your permissions, grant Drive access:</p>
+            <a
+              className="btn btn-primary"
+              href={`/auth/google/drive?returnUrl=${encodeURIComponent(returnUrl)}`}
+            >
+              Grant Drive Access
+            </a>
+          </>
+        ) : (
+          <p>Ask the document owner to share it with you, then try again.</p>
+        )}
+      </div>
+    );
+  }
   if (!session) return <div className="loading">Session not found</div>;
 
   return (

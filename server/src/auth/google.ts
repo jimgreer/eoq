@@ -29,7 +29,7 @@ export function setupAuth() {
         clientSecret: config.google.clientSecret,
         callbackURL: config.google.callbackUrl,
       },
-      (_accessToken, _refreshToken, profile, done) => {
+      (accessToken, refreshToken, profile, done) => {
         try {
           const email = profile.emails?.[0]?.value;
           if (!email) {
@@ -43,18 +43,35 @@ export function setupAuth() {
             }
           }
 
-          // Upsert user
           const existing = db.prepare('SELECT * FROM users WHERE google_id = ?').get(profile.id) as any;
           if (existing) {
+            // Update user info and tokens. Only overwrite refresh_token if we got a new one.
             db.prepare(
-              'UPDATE users SET email = ?, display_name = ?, avatar_url = ? WHERE google_id = ?'
-            ).run(email, profile.displayName, profile.photos?.[0]?.value || null, profile.id);
+              `UPDATE users SET email = ?, display_name = ?, avatar_url = ?,
+               access_token = ?, refresh_token = COALESCE(?, refresh_token)
+               WHERE google_id = ?`
+            ).run(
+              email,
+              profile.displayName,
+              profile.photos?.[0]?.value || null,
+              accessToken,
+              refreshToken || null,
+              profile.id
+            );
             const updated = db.prepare('SELECT * FROM users WHERE google_id = ?').get(profile.id);
             done(null, updated as Express.User);
           } else {
             const result = db.prepare(
-              'INSERT INTO users (google_id, email, display_name, avatar_url) VALUES (?, ?, ?, ?)'
-            ).run(profile.id, email, profile.displayName, profile.photos?.[0]?.value || null);
+              `INSERT INTO users (google_id, email, display_name, avatar_url, access_token, refresh_token)
+               VALUES (?, ?, ?, ?, ?, ?)`
+            ).run(
+              profile.id,
+              email,
+              profile.displayName,
+              profile.photos?.[0]?.value || null,
+              accessToken,
+              refreshToken || null
+            );
             const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
             done(null, newUser as Express.User);
           }

@@ -447,6 +447,35 @@ body {
   font-size: 16px;
 }
 
+/* Access denied */
+.access-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  text-align: center;
+  color: #5f6368;
+  gap: 12px;
+  padding: 24px;
+}
+
+.access-denied h2 {
+  color: #202124;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.access-denied p {
+  font-size: 14px;
+  max-width: 400px;
+}
+
+.access-denied .btn {
+  margin-top: 8px;
+  text-decoration: none;
+}
+
 /* Mobile tab bar - hidden on desktop */
 .mobile-tab-bar {
   display: none;

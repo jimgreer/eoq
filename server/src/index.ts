@@ -75,6 +75,6 @@ if (process.env.NODE_ENV === 'production') {
 // Socket.IO
 createSocketServer(httpServer, sessionMiddleware);
 
-httpServer.listen(config.port, () => {
+httpServer.listen(config.port, '0.0.0.0', () => {
   console.log(`Server running on port ${config.port}`);
 });

@@ -5,6 +5,7 @@ import DOMPurify from 'dompurify';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth, requireAdmin } from '../auth/middleware.js';
 import { db } from '../db.js';
+import { extractGoogleDocId, checkDriveAccess } from '../services/drivePermissions.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -44,7 +45,7 @@ function extractBody(html: string): string {
 // List sessions
 router.get('/', requireAuth, (_req, res) => {
   const sessions = db.prepare(
-    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, u.display_name AS creator_name
+    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id, u.display_name AS creator_name
      FROM review_sessions rs
      LEFT JOIN users u ON rs.created_by = u.id
      ORDER BY rs.created_at DESC`
@@ -52,12 +53,26 @@ router.get('/', requireAuth, (_req, res) => {
   res.json(sessions);
 });
 
-// Get single session
-router.get('/:id', requireAuth, (req, res) => {
-  const session = db.prepare('SELECT * FROM review_sessions WHERE id = ?').get(req.params.id);
+// Get single session (with Drive permission check)
+router.get('/:id', requireAuth, async (req, res) => {
+  const session = db.prepare('SELECT * FROM review_sessions WHERE id = ?').get(req.params.id) as any;
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
+
+  // If session is linked to a Google Doc, check Drive permissions (skip for creator)
+  const user = req.user as any;
+  if (session.google_doc_id && session.created_by !== user.id) {
+    const { hasAccess, needsDriveAuth } = await checkDriveAccess(user.id, session.google_doc_id);
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: 'You do not have access to the linked Google Doc',
+        needsDriveAuth,
+        google_doc_id: session.google_doc_id,
+      });
+    }
+  }
+
   res.json(session);
 });
 
@@ -80,14 +95,24 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
   const sanitized = sanitizeHtml(htmlContent);
   const processed = extractBody(sanitized);
 
+  // Extract Google Doc ID if a URL was provided
+  const googleDocUrl = req.body.google_doc_url;
+  let googleDocId: string | null = null;
+  if (googleDocUrl) {
+    googleDocId = extractGoogleDocId(googleDocUrl);
+    if (!googleDocId) {
+      return res.status(400).json({ error: 'Invalid Google Doc URL' });
+    }
+  }
+
   const user = req.user as any;
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO review_sessions (id, title, html_content, created_by) VALUES (?, ?, ?, ?)'
-  ).run(id, title, processed, user.id);
+    'INSERT INTO review_sessions (id, title, html_content, created_by, google_doc_id) VALUES (?, ?, ?, ?, ?)'
+  ).run(id, title, processed, user.id, googleDocId);
 
   const session = db.prepare(
-    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, u.display_name AS creator_name
+    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.google_doc_id, u.display_name AS creator_name
      FROM review_sessions rs
      LEFT JOIN users u ON rs.created_by = u.id
      WHERE rs.id = ?`

@@ -14,6 +14,7 @@ export interface ReviewSession {
   created_by: number;
   is_active: boolean;
   created_at: string;
+  google_doc_id: string | null;
 }
 
 export interface TextAnchor {
