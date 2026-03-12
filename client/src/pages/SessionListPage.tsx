@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthProvider';
 
 interface Session {
   id: string;
   title: string;
   is_active: boolean;
   created_at: string;
+  created_by: number;
   creator_name?: string;
 }
 
 export function SessionListPage() {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
@@ -42,6 +45,19 @@ export function SessionListPage() {
       alert(err.response?.data?.error || 'Upload failed');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('Delete this review session? All comments will be lost.')) return;
+
+    try {
+      await api.delete(`/sessions/${sessionId}`);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Delete failed');
     }
   };
 
@@ -93,6 +109,14 @@ export function SessionListPage() {
                     {!s.is_active && ' (Closed)'}
                   </div>
                 </div>
+                {user && s.created_by === user.id && (
+                  <button
+                    className="btn btn-text btn-delete"
+                    onClick={e => handleDelete(e, s.id)}
+                  >
+                    Delete
+                  </button>
+                )}
               </Link>
             ))}
           </div>

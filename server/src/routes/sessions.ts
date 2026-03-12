@@ -113,4 +113,20 @@ router.patch('/:id', requireAdmin, (req, res) => {
   res.json(session);
 });
 
+// Delete session (creator only)
+router.delete('/:id', requireAuth, (req, res) => {
+  const user = req.user as any;
+  const session = db.prepare('SELECT created_by FROM review_sessions WHERE id = ?').get(req.params.id) as any;
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  if (session.created_by !== user.id) {
+    return res.status(403).json({ error: 'Only the session creator can delete it' });
+  }
+
+  db.prepare('DELETE FROM review_sessions WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 export default router;

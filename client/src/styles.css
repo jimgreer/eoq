@@ -72,6 +72,16 @@ body {
   color: #1a73e8;
 }
 
+.btn-delete {
+  color: #d93025;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.btn-delete:hover {
+  color: #a50e0e;
+}
+
 /* Instructions */
 .instructions {
   background: #e8f0fe;
