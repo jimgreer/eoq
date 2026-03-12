@@ -44,43 +44,6 @@ npm run dev
 
 Visit http://localhost:5173.
 
-### Environment variables
-
-| Variable | Description | Default |
-|---|---|---|
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | (required) |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | (required) |
-| `GOOGLE_CALLBACK_URL` | OAuth callback URL | `http://localhost:3000/auth/google/callback` |
-| `GOOGLE_ALLOWED_DOMAIN` | Restrict login to a specific email domain | (any) |
-| `SESSION_SECRET` | Secret for signing session cookies | (required in production) |
-| `CLIENT_URL` | Frontend URL (for CORS and redirects) | `http://localhost:5173` |
-| `PORT` | Server port | `3000` |
-
-## Deploy to Fly.io
-
-```bash
-# Install flyctl and authenticate
-curl -L https://fly.io/install.sh | sh
-flyctl auth login
-
-# Create app and persistent volume
-flyctl apps create your-app-name
-flyctl volumes create eoq_data --region sjc --size 1
-
-# Set secrets
-flyctl secrets set \
-  GOOGLE_CLIENT_ID=... \
-  GOOGLE_CLIENT_SECRET=... \
-  GOOGLE_CALLBACK_URL=https://your-app-name.fly.dev/auth/google/callback \
-  CLIENT_URL=https://your-app-name.fly.dev \
-  SESSION_SECRET=$(openssl rand -base64 32)
-
-# Deploy
-flyctl deploy
-```
-
-Remember to add `https://your-app-name.fly.dev/auth/google/callback` as an authorized redirect URI in Google Cloud Console.
-
 ## Project structure
 
 ```
