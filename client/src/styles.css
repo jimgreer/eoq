@@ -183,6 +183,20 @@ body {
   margin-top: 4px;
 }
 
+.session-card .meta .restricted-info {
+  margin-top: 2px;
+  color: #5f6368;
+}
+
+.session-card .meta .doc-link {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.session-card .meta .doc-link:hover {
+  text-decoration: underline;
+}
+
 /* Review sub-header */
 .review-subheader {
   display: flex;

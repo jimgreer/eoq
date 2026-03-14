@@ -15,7 +15,7 @@ export function App() {
       <header className="app-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <h1>Document Review</h1>
+            <h1>Silent Meeting</h1>
           </Link>
         </div>
         <div className="user-info">

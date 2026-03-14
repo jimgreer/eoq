@@ -119,7 +119,20 @@ export function SessionListPage() {
                   <div className="meta">
                     Created {new Date(s.created_at + 'Z').toLocaleDateString()}
                     {s.creator_name && ` by ${s.creator_name}`}
-                    {s.google_doc_id && ' · Restricted'}
+                    {s.google_doc_id && (
+                      <div className="restricted-info">
+                        Restricted to viewers of{' '}
+                        <a
+                          href={`https://docs.google.com/document/d/${s.google_doc_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="doc-link"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          source doc
+                        </a>
+                      </div>
+                    )}
                     {!s.is_active && ' (Closed)'}
                   </div>
                 </div>
