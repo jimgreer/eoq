@@ -83,6 +83,7 @@ function CommentThread({
 }) {
   const [replyText, setReplyText] = useState('');
   const [showReply, setShowReply] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(!thread.resolved);
 
   const handleReply = () => {
     if (!replyText.trim()) return;
@@ -91,12 +92,27 @@ function CommentThread({
     setShowReply(false);
   };
 
+  const handleClick = () => {
+    if (thread.resolved && !isExpanded) {
+      setIsExpanded(true);
+    }
+    onClick();
+  };
+
   return (
     <div
-      className={`comment-thread${isActive ? ' active' : ''}${thread.resolved ? ' resolved' : ''}`}
+      className={`comment-thread${isActive ? ' active' : ''}${thread.resolved ? ' resolved' : ''}${thread.resolved && !isExpanded ? ' collapsed' : ''}`}
       data-thread-id={thread.id}
-      onClick={onClick}
+      onClick={handleClick}
     >
+      {thread.resolved && (
+        <div className="resolved-badge">
+          <span className="checkmark">&#10003;</span> Resolved
+          {!isExpanded && thread.replies && thread.replies.length > 0 && (
+            <span className="reply-count"> ({thread.replies.length + 1} comments)</span>
+          )}
+        </div>
+      )}
       {thread.anchor?.quote && (
         <div
           className="comment-quote"
@@ -112,56 +128,64 @@ function CommentThread({
             : thread.anchor.quote}"
         </div>
       )}
-      <CommentEntry
-        comment={thread}
-        canModify={currentUserId === thread.user_id}
-        onEdit={onEdit}
-        onDelete={onDelete}
-      />
-      {thread.replies?.map(reply => (
-        <CommentEntry
-          key={reply.id}
-          comment={reply}
-          canModify={currentUserId === reply.user_id}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      ))}
-      <div className="comment-actions">
-        <button
-          className="btn btn-text"
-          onClick={e => {
-            e.stopPropagation();
-            setShowReply(!showReply);
-          }}
-        >
-          Reply
-        </button>
-        <button
-          className="btn btn-text"
-          onClick={e => {
-            e.stopPropagation();
-            onResolve();
-          }}
-        >
-          {thread.resolved ? 'Reopen' : 'Resolve'}
-        </button>
-      </div>
-      {showReply && (
-        <div className="reply-form" onClick={e => e.stopPropagation()}>
-          <input
-            value={replyText}
-            onChange={e => setReplyText(e.target.value)}
-            placeholder="Reply..."
-            onKeyDown={e => {
-              if (e.key === 'Enter') handleReply();
-            }}
-            autoFocus
+      {(!thread.resolved || isExpanded) && (
+        <>
+          <CommentEntry
+            comment={thread}
+            canModify={currentUserId === thread.user_id}
+            onEdit={onEdit}
+            onDelete={onDelete}
           />
-          <button className="btn btn-primary" onClick={handleReply}>
-            Send
-          </button>
-        </div>
+          {thread.replies?.map(reply => (
+            <CommentEntry
+              key={reply.id}
+              comment={reply}
+              canModify={currentUserId === reply.user_id}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+        </>
+      )}
+      {(!thread.resolved || isExpanded) && (
+        <>
+          <div className="comment-actions">
+            <button
+              className="btn btn-text"
+              onClick={e => {
+                e.stopPropagation();
+                setShowReply(!showReply);
+              }}
+            >
+              Reply
+            </button>
+            <button
+              className="btn btn-text"
+              onClick={e => {
+                e.stopPropagation();
+                onResolve();
+              }}
+            >
+              {thread.resolved ? 'Reopen' : 'Resolve'}
+            </button>
+          </div>
+          {showReply && (
+            <div className="reply-form" onClick={e => e.stopPropagation()}>
+              <input
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                placeholder="Reply..."
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleReply();
+                }}
+                autoFocus
+              />
+              <button className="btn btn-primary" onClick={handleReply}>
+                Send
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

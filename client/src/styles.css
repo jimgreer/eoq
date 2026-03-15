@@ -290,7 +290,42 @@ body {
 }
 
 .comment-thread.resolved {
-  opacity: 0.6;
+  background: #f8f9fa;
+  border-color: #e8eaed;
+}
+
+.comment-thread.resolved.collapsed {
+  cursor: pointer;
+}
+
+.comment-thread.resolved.collapsed:hover {
+  background: #f1f3f4;
+}
+
+.resolved-badge {
+  padding: 8px 12px;
+  background: #e6f4ea;
+  color: #137333;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.resolved-badge .checkmark {
+  font-size: 14px;
+}
+
+.resolved-badge .reply-count {
+  color: #5f6368;
+  font-weight: 400;
+}
+
+.comment-thread.resolved .comment-quote {
+  background: #f1f3f4;
+  text-decoration: line-through;
+  color: #80868b;
 }
 
 .comment-quote {
