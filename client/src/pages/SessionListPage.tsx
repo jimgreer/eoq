@@ -38,6 +38,7 @@ export function SessionListPage() {
   const [googleDocUrl, setGoogleDocUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [newSessionId, setNewSessionId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'created' | 'activity' | 'title'>('created');
 
   useEffect(() => {
     api
@@ -86,6 +87,22 @@ export function SessionListPage() {
 
   if (loading) return <div className="loading">Loading...</div>;
 
+  const sortedSessions = [...sessions].sort((a, b) => {
+    switch (sortBy) {
+      case 'activity':
+        // Sessions with activity first, sorted by most recent
+        if (!a.last_activity && !b.last_activity) return 0;
+        if (!a.last_activity) return 1;
+        if (!b.last_activity) return -1;
+        return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
+      case 'title':
+        return a.title.localeCompare(b.title);
+      case 'created':
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
+
   return (
     <div className="admin-page">
       <div className="instructions">
@@ -119,9 +136,20 @@ export function SessionListPage() {
 
       {sessions.length > 0 && (
         <>
-          <h2>Sessions</h2>
+          <div className="sessions-header">
+            <h2>Sessions</h2>
+            <select
+              className="sort-select"
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as 'created' | 'activity' | 'title')}
+            >
+              <option value="created">Newest first</option>
+              <option value="activity">Recent activity</option>
+              <option value="title">Alphabetical</option>
+            </select>
+          </div>
           <div className="session-list">
-            {sessions.map(s => (
+            {sortedSessions.map(s => (
               <Link
                 key={s.id}
                 to={`/review/${s.id}`}
