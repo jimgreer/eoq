@@ -118,29 +118,27 @@ function extractFromZip(buffer: Buffer): string {
 
   let html = htmlEntry.getData().toString('utf-8');
 
-  // Build a map of image paths to base64 data URLs
-  const imageMap = new Map<string, string>();
+  // Build a simple map of basenames to entries (not data, to save memory)
+  const imageEntries = new Map<string, typeof entries[0]>();
   for (const entry of entries) {
     if (entry.isDirectory) continue;
     const ext = path.extname(entry.entryName).toLowerCase();
-    const mimeType = MIME_TYPES[ext];
-    if (mimeType) {
-      const base64 = entry.getData().toString('base64');
-      const dataUrl = `data:${mimeType};base64,${base64}`;
-      // Store with various path formats that might appear in src
-      const filename = entry.entryName;
-      imageMap.set(filename, dataUrl);
-      imageMap.set('./' + filename, dataUrl);
-      imageMap.set(path.basename(filename), dataUrl);
+    if (MIME_TYPES[ext]) {
+      imageEntries.set(entry.entryName, entry);
+      imageEntries.set(path.basename(entry.entryName), entry);
     }
   }
 
-  // Replace image src attributes with base64 data URLs
+  // Replace image src attributes with base64 data URLs (load each image only when needed)
   html = html.replace(/(<img[^>]*\ssrc=["'])([^"']+)(["'][^>]*>)/gi, (match, before, src, after) => {
-    // Try to find the image in our map
-    const dataUrl = imageMap.get(src) || imageMap.get(decodeURIComponent(src));
-    if (dataUrl) {
-      return before + dataUrl + after;
+    const decodedSrc = decodeURIComponent(src);
+    const entry = imageEntries.get(src) || imageEntries.get(decodedSrc) ||
+                  imageEntries.get(path.basename(src)) || imageEntries.get(path.basename(decodedSrc));
+    if (entry) {
+      const ext = path.extname(entry.entryName).toLowerCase();
+      const mimeType = MIME_TYPES[ext];
+      const base64 = entry.getData().toString('base64');
+      return before + `data:${mimeType};base64,${base64}` + after;
     }
     return match;
   });
