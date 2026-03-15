@@ -44,14 +44,25 @@ function extractBody(html: string): string {
   return styleTag + body;
 }
 
-// List sessions
-router.get('/', requireAuth, (_req, res) => {
+// List sessions (only those user has access to)
+router.get('/', requireAuth, (req, res) => {
+  const user = req.user as any;
+
   const sessions = db.prepare(
-    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id, u.display_name AS creator_name
+    `SELECT
+       rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id,
+       rs.access_level,
+       u.display_name AS creator_name,
+       (SELECT COUNT(*) FROM comments c WHERE c.session_id = rs.id) AS comment_count,
+       (SELECT MAX(c.created_at) FROM comments c WHERE c.session_id = rs.id) AS last_activity
      FROM review_sessions rs
      LEFT JOIN users u ON rs.created_by = u.id
+     WHERE rs.created_by = ?
+        OR rs.access_level = 'link'
+        OR EXISTS (SELECT 1 FROM session_collaborators sc WHERE sc.session_id = rs.id AND sc.email = ?)
      ORDER BY rs.created_at DESC`
-  ).all();
+  ).all(user.id, user.email);
+
   res.json(sessions);
 });
 
@@ -210,9 +221,9 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
      FROM review_sessions rs
      LEFT JOIN users u ON rs.created_by = u.id
      WHERE rs.id = ?`
-  ).get(id);
+  ).get(id) as any;
 
-  res.status(201).json(session);
+  res.status(201).json({ ...session, comment_count: 0, last_activity: null });
 });
 
 // Toggle session active state
