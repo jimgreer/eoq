@@ -22,7 +22,7 @@ export function ReviewPage() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState<{ needsDriveAuth: boolean } | null>(null);
-  const { threads, addComment, resolveComment, editComment, deleteComment } = useComments(sessionId);
+  const { threads, addComment, resolveComment, editComment, deleteComment, toggleReaction } = useComments(sessionId, user?.id);
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'doc' | 'comments'>('doc');
@@ -187,6 +187,7 @@ export function ReviewPage() {
           onResolve={resolveComment}
           onEdit={editComment}
           onDelete={deleteComment}
+          onReact={toggleReaction}
           onQuoteClick={handleQuoteClick}
           className={mobileTab !== 'comments' ? 'mobile-hidden' : ''}
         />

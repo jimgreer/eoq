@@ -24,6 +24,13 @@ export interface TextAnchor {
   quote: string;
 }
 
+export interface Reaction {
+  emoji: string;
+  count: number;
+  users: { id: number; display_name: string }[];
+  hasReacted: boolean; // Whether current user has reacted with this emoji
+}
+
 export interface Comment {
   id: string;
   session_id: string;
@@ -36,6 +43,7 @@ export interface Comment {
   edited_at: string | null;
   user: Pick<User, 'id' | 'display_name' | 'email' | 'avatar_url'>;
   replies?: Comment[];
+  reactions?: Reaction[];
 }
 
 // Socket.IO event types
@@ -44,6 +52,13 @@ export interface ServerToClientEvents {
   'comment:resolved': (data: { comment_id: string; resolved: boolean }) => void;
   'comment:edited': (data: { comment_id: string; body: string; edited_at: string }) => void;
   'comment:deleted': (data: { comment_id: string; parent_id: string | null }) => void;
+  'reaction:updated': (data: {
+    comment_id: string;
+    emoji: string;
+    user_id: number;
+    user_name: string;
+    added: boolean;
+  }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -67,6 +82,10 @@ export interface ClientToServerEvents {
   'comment:delete': (
     data: { comment_id: string },
     callback: (result: { ok: boolean; error?: string }) => void
+  ) => void;
+  'reaction:toggle': (
+    data: { comment_id: string; emoji: string },
+    callback: (result: { ok: boolean; added?: boolean; error?: string }) => void
   ) => void;
   'session:join': (session_id: string) => void;
   'session:leave': (session_id: string) => void;

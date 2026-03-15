@@ -14,6 +14,7 @@ interface Props {
   onResolve: (commentId: string, resolved: boolean) => void;
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
+  onReact: (commentId: string, emoji: string) => Promise<boolean>;
   onQuoteClick?: (threadId: string) => void;
   className?: string;
 }
@@ -27,6 +28,7 @@ export function CommentSidebar({
   onResolve,
   onEdit,
   onDelete,
+  onReact,
   onQuoteClick,
   className,
 }: Props) {
@@ -52,6 +54,7 @@ export function CommentSidebar({
             onResolve={() => onResolve(thread.id, !thread.resolved)}
             onEdit={onEdit}
             onDelete={onDelete}
+            onReact={onReact}
             onQuoteClick={onQuoteClick ? () => onQuoteClick(thread.id) : undefined}
           />
         ))}
@@ -69,6 +72,7 @@ function CommentThread({
   onResolve,
   onEdit,
   onDelete,
+  onReact,
   onQuoteClick,
 }: {
   thread: Thread;
@@ -79,6 +83,7 @@ function CommentThread({
   onResolve: () => void;
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
+  onReact: (commentId: string, emoji: string) => Promise<boolean>;
   onQuoteClick?: () => void;
 }) {
   const [replyText, setReplyText] = useState('');
@@ -135,6 +140,7 @@ function CommentThread({
             canModify={currentUserId === thread.user_id}
             onEdit={onEdit}
             onDelete={onDelete}
+            onReact={onReact}
           />
           {thread.replies?.map(reply => (
             <CommentEntry
@@ -143,6 +149,7 @@ function CommentThread({
               canModify={currentUserId === reply.user_id}
               onEdit={onEdit}
               onDelete={onDelete}
+              onReact={onReact}
             />
           ))}
         </>
@@ -191,19 +198,24 @@ function CommentThread({
   );
 }
 
+const EMOJI_OPTIONS = ['👍', '👎', '❤️', '🎉', '😄', '🤔'];
+
 function CommentEntry({
   comment,
   canModify,
   onEdit,
   onDelete,
+  onReact,
 }: {
   comment: Comment;
   canModify: boolean;
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
+  onReact: (commentId: string, emoji: string) => Promise<boolean>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(comment.body);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const time = new Date(comment.created_at + 'Z').toLocaleTimeString([], {
     hour: '2-digit',
@@ -230,6 +242,15 @@ function CommentEntry({
       await onDelete(comment.id);
     } catch {
       alert('Failed to delete comment');
+    }
+  };
+
+  const handleReact = async (emoji: string) => {
+    setShowEmojiPicker(false);
+    try {
+      await onReact(comment.id, emoji);
+    } catch {
+      alert('Failed to add reaction');
     }
   };
 
@@ -296,7 +317,43 @@ function CommentEntry({
           </button>
         </div>
       ) : (
-        <div className="comment-body">{comment.body}</div>
+        <>
+          <div className="comment-body">{comment.body}</div>
+          <div className="comment-reactions" onClick={e => e.stopPropagation()}>
+            {comment.reactions?.map(reaction => (
+              <button
+                key={reaction.emoji}
+                className={`reaction-chip${reaction.hasReacted ? ' reacted' : ''}`}
+                title={reaction.users.map(u => u.display_name).join(', ')}
+                onClick={() => handleReact(reaction.emoji)}
+              >
+                {reaction.emoji} {reaction.count}
+              </button>
+            ))}
+            <div className="add-reaction-wrapper">
+              <button
+                className="btn-icon add-reaction"
+                title="Add reaction"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              >
+                +
+              </button>
+              {showEmojiPicker && (
+                <div className="emoji-picker">
+                  {EMOJI_OPTIONS.map(emoji => (
+                    <button
+                      key={emoji}
+                      className="emoji-option"
+                      onClick={() => handleReact(emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

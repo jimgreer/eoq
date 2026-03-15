@@ -69,6 +69,7 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
           email: user.email,
           avatar_url: user.avatar_url,
         },
+        reactions: [],
       };
 
       io.to(`session:${session_id}`).emit('comment:new', comment);
@@ -173,6 +174,58 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
     } catch (err) {
       console.error('Error deleting comment:', err);
       callback({ ok: false, error: 'Failed to delete comment' });
+    }
+  });
+
+  socket.on('reaction:toggle', (data, callback) => {
+    try {
+      const { comment_id, emoji } = data;
+
+      // Validate emoji is one of our allowed set
+      const allowedEmojis = ['👍', '👎', '❤️', '🎉', '😄', '🤔'];
+      if (!allowedEmojis.includes(emoji)) {
+        return callback({ ok: false, error: 'Invalid emoji' });
+      }
+
+      const comment = db.prepare(
+        'SELECT session_id FROM comments WHERE id = ?'
+      ).get(comment_id) as any;
+
+      if (!comment) {
+        return callback({ ok: false, error: 'Comment not found' });
+      }
+
+      // Check if user already reacted with this emoji
+      const existing = db.prepare(
+        'SELECT id FROM reactions WHERE comment_id = ? AND user_id = ? AND emoji = ?'
+      ).get(comment_id, user.id, emoji);
+
+      let added: boolean;
+      if (existing) {
+        // Remove reaction
+        db.prepare(
+          'DELETE FROM reactions WHERE comment_id = ? AND user_id = ? AND emoji = ?'
+        ).run(comment_id, user.id, emoji);
+        added = false;
+      } else {
+        // Add reaction
+        db.prepare(
+          'INSERT INTO reactions (comment_id, user_id, emoji) VALUES (?, ?, ?)'
+        ).run(comment_id, user.id, emoji);
+        added = true;
+      }
+
+      io.to(`session:${comment.session_id}`).emit('reaction:updated', {
+        comment_id,
+        emoji,
+        user_id: user.id,
+        user_name: user.display_name,
+        added,
+      });
+      callback({ ok: true, added });
+    } catch (err) {
+      console.error('Error toggling reaction:', err);
+      callback({ ok: false, error: 'Failed to toggle reaction' });
     }
   });
 }
