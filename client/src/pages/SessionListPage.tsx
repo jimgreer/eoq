@@ -39,6 +39,8 @@ export function SessionListPage() {
   const [uploading, setUploading] = useState(false);
   const [newSessionId, setNewSessionId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'created' | 'activity' | 'title'>('created');
+  const [showOwnedOnly, setShowOwnedOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     api
@@ -87,7 +89,20 @@ export function SessionListPage() {
 
   if (loading) return <div className="loading">Loading...</div>;
 
-  const sortedSessions = [...sessions].sort((a, b) => {
+  const filteredSessions = sessions.filter(s => {
+    // Filter by ownership
+    if (showOwnedOnly && user && s.created_by !== user.id) return false;
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesTitle = s.title.toLowerCase().includes(query);
+      const matchesCreator = s.creator_name?.toLowerCase().includes(query);
+      if (!matchesTitle && !matchesCreator) return false;
+    }
+    return true;
+  });
+
+  const sortedSessions = [...filteredSessions].sort((a, b) => {
     switch (sortBy) {
       case 'activity':
         // Sessions with activity first, sorted by most recent
@@ -136,8 +151,22 @@ export function SessionListPage() {
 
       {sessions.length > 0 && (
         <>
-          <div className="sessions-header">
-            <h2>Sessions</h2>
+          <div className="sessions-toolbar">
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search sessions..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            <label className="filter-checkbox">
+              <input
+                type="checkbox"
+                checked={showOwnedOnly}
+                onChange={e => setShowOwnedOnly(e.target.checked)}
+              />
+              Owned by me
+            </label>
             <select
               className="sort-select"
               value={sortBy}
@@ -149,7 +178,9 @@ export function SessionListPage() {
             </select>
           </div>
           <div className="session-list">
-            {sortedSessions.map(s => (
+            {sortedSessions.length === 0 ? (
+              <div className="no-results">No sessions match your filters</div>
+            ) : sortedSessions.map(s => (
               <Link
                 key={s.id}
                 to={`/review/${s.id}`}

@@ -149,15 +149,42 @@ body {
   font-size: 14px;
 }
 
-.sessions-header {
+.sessions-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
-.sessions-header h2 {
-  margin: 0;
+.search-input {
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #5f6368;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-checkbox input {
+  cursor: pointer;
 }
 
 .sort-select {
@@ -171,6 +198,13 @@ body {
 
 .sort-select:hover {
   border-color: #1a73e8;
+}
+
+.no-results {
+  text-align: center;
+  padding: 32px;
+  color: #5f6368;
+  font-size: 14px;
 }
 
 .session-list {
