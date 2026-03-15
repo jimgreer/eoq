@@ -3,12 +3,14 @@ import multer from 'multer';
 import { JSDOM } from 'jsdom';
 import DOMPurify from 'dompurify';
 import { v4 as uuidv4 } from 'uuid';
+import AdmZip from 'adm-zip';
+import path from 'path';
 import { requireAuth, requireAdmin } from '../auth/middleware.js';
 import { db } from '../db.js';
 import { extractGoogleDocId, checkDriveAccess } from '../services/drivePermissions.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB for zips with images
 
 function sanitizeHtml(rawHtml: string): string {
   const dom = new JSDOM('');
@@ -93,6 +95,59 @@ router.get('/:id', requireAuth, async (req, res) => {
   res.json(session);
 });
 
+// MIME types for common image formats
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
+
+// Extract HTML from zip and embed images as base64
+function extractFromZip(buffer: Buffer): string {
+  const zip = new AdmZip(buffer);
+  const entries = zip.getEntries();
+
+  // Find the HTML file (should be at root level)
+  const htmlEntry = entries.find(e => !e.isDirectory && e.entryName.endsWith('.html'));
+  if (!htmlEntry) {
+    throw new Error('No HTML file found in zip');
+  }
+
+  let html = htmlEntry.getData().toString('utf-8');
+
+  // Build a map of image paths to base64 data URLs
+  const imageMap = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+    const ext = path.extname(entry.entryName).toLowerCase();
+    const mimeType = MIME_TYPES[ext];
+    if (mimeType) {
+      const base64 = entry.getData().toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+      // Store with various path formats that might appear in src
+      const filename = entry.entryName;
+      imageMap.set(filename, dataUrl);
+      imageMap.set('./' + filename, dataUrl);
+      imageMap.set(path.basename(filename), dataUrl);
+    }
+  }
+
+  // Replace image src attributes with base64 data URLs
+  html = html.replace(/(<img[^>]*\ssrc=["'])([^"']+)(["'][^>]*>)/gi, (match, before, src, after) => {
+    // Try to find the image in our map
+    const dataUrl = imageMap.get(src) || imageMap.get(decodeURIComponent(src));
+    if (dataUrl) {
+      return before + dataUrl + after;
+    }
+    return match;
+  });
+
+  return html;
+}
+
 // Extract title from filename, converting CamelCase to spaces
 function extractTitleFromFilename(filename: string): string {
   // Remove extension
@@ -110,7 +165,18 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
   let title: string;
 
   if (req.file) {
-    htmlContent = req.file.buffer.toString('utf-8');
+    const isZip = req.file.originalname.toLowerCase().endsWith('.zip') ||
+                  req.file.mimetype === 'application/zip';
+
+    if (isZip) {
+      try {
+        htmlContent = extractFromZip(req.file.buffer);
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message || 'Failed to extract zip' });
+      }
+    } else {
+      htmlContent = req.file.buffer.toString('utf-8');
+    }
     title = extractTitleFromFilename(req.file.originalname);
   } else if (req.body.html_content) {
     htmlContent = req.body.html_content;

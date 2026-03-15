@@ -71,8 +71,8 @@ export function SessionListPage() {
       <div className="instructions">
         <h2>How it works</h2>
         <ol>
-          <li>Open your Google Doc and go to <strong>File &rarr; Download &rarr; Web Page (.html)</strong></li>
-          <li>Upload the HTML file below</li>
+          <li>Open your Google Doc and go to <strong>File &rarr; Download &rarr; Web Page (.html, zipped)</strong></li>
+          <li>Upload the zip file below (images will be embedded automatically)</li>
           <li>Share the review link with your team</li>
           <li>Everyone can select text in the document and leave comments in real time</li>
         </ol>
@@ -82,7 +82,7 @@ export function SessionListPage() {
       <form className="upload-form" onSubmit={handleUpload}>
         <input
           type="file"
-          accept=".html,.htm"
+          accept=".html,.htm,.zip"
           onChange={e => setFile(e.target.files?.[0] || null)}
           required
         />
