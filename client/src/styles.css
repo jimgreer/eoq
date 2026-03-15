@@ -172,6 +172,17 @@ body {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
 }
 
+.session-card.session-new {
+  background: #e8f5e9;
+  border-color: #4caf50;
+  animation: highlight-fade 3s ease-out forwards;
+}
+
+@keyframes highlight-fade {
+  0% { background: #e8f5e9; border-color: #4caf50; }
+  100% { background: #fff; border-color: #dadce0; }
+}
+
 .session-card .title {
   font-size: 16px;
   font-weight: 500;

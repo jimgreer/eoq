@@ -20,6 +20,7 @@ export function SessionListPage() {
   const [file, setFile] = useState<File | null>(null);
   const [googleDocUrl, setGoogleDocUrl] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [newSessionId, setNewSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -44,6 +45,8 @@ export function SessionListPage() {
       setSessions(prev => [res.data, ...prev]);
       setFile(null);
       setGoogleDocUrl('');
+      setNewSessionId(res.data.id);
+      setTimeout(() => setNewSessionId(null), 3000);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Upload failed');
     } finally {
@@ -102,7 +105,11 @@ export function SessionListPage() {
           <h2>Sessions</h2>
           <div className="session-list">
             {sessions.map(s => (
-              <Link key={s.id} to={`/review/${s.id}`} className="session-card">
+              <Link
+                key={s.id}
+                to={`/review/${s.id}`}
+                className={`session-card${s.id === newSessionId ? ' session-new' : ''}`}
+              >
                 <div>
                   <div className="title">{s.title}</div>
                   <div className="meta">
