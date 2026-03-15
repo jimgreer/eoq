@@ -93,24 +93,32 @@ router.get('/:id', requireAuth, async (req, res) => {
   res.json(session);
 });
 
-// Extract title from HTML document
-function extractTitle(html: string): string {
-  const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-  return titleMatch ? titleMatch[1].trim() : 'Untitled Document';
+// Extract title from filename, converting CamelCase to spaces
+function extractTitleFromFilename(filename: string): string {
+  // Remove extension
+  const name = filename.replace(/\.(html?|zip)$/i, '');
+  // Insert space before capitals (but not at start, and handle consecutive caps like "Q1")
+  const spaced = name
+    .replace(/([a-z])([A-Z])/g, '$1 $2')  // camelCase -> camel Case
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');  // XMLParser -> XML Parser
+  return spaced || 'Untitled Document';
 }
 
 // Create session
 router.post('/', requireAuth, upload.single('file'), (req, res) => {
   let htmlContent: string;
+  let title: string;
+
   if (req.file) {
     htmlContent = req.file.buffer.toString('utf-8');
+    title = extractTitleFromFilename(req.file.originalname);
   } else if (req.body.html_content) {
     htmlContent = req.body.html_content;
+    title = 'Untitled Document';
   } else {
     return res.status(400).json({ error: 'HTML file or html_content is required' });
   }
 
-  const title = extractTitle(htmlContent);
   const sanitized = sanitizeHtml(htmlContent);
   const processed = extractBody(sanitized);
 
