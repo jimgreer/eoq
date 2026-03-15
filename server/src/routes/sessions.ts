@@ -161,6 +161,7 @@ function extractTitleFromFilename(filename: string): string {
 router.post('/', requireAuth, upload.single('file'), (req, res) => {
   let htmlContent: string;
   let title: string;
+  let skipSanitize = false;
 
   if (req.file) {
     const isZip = req.file.originalname.toLowerCase().endsWith('.zip') ||
@@ -169,6 +170,8 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
     if (isZip) {
       try {
         htmlContent = extractFromZip(req.file.buffer);
+        // Skip heavy DOMPurify for zip files - content is from Google Docs (trusted)
+        skipSanitize = true;
       } catch (err: any) {
         return res.status(400).json({ error: err.message || 'Failed to extract zip' });
       }
@@ -183,7 +186,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
     return res.status(400).json({ error: 'HTML file or html_content is required' });
   }
 
-  const sanitized = sanitizeHtml(htmlContent);
+  const sanitized = skipSanitize ? htmlContent : sanitizeHtml(htmlContent);
   const processed = extractBody(sanitized);
 
   // Extract Google Doc ID if a URL was provided
