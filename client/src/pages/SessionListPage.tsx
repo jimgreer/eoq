@@ -75,7 +75,7 @@ export function SessionListPage() {
         <h2>How it works</h2>
         <ol>
           <li>Open your Google Doc and go to <strong>File &rarr; Download &rarr; Web Page (.html, zipped)</strong></li>
-          <li>Upload the zip file below (images will be embedded automatically)</li>
+          <li>Upload the zip file below</li>
           <li>Share the review link with your team</li>
           <li>Everyone can select text in the document and leave comments in real time</li>
         </ol>

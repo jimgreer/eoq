@@ -206,7 +206,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
   ).run(id, title, processed, user.id, googleDocId);
 
   const session = db.prepare(
-    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.google_doc_id, u.display_name AS creator_name
+    `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id, u.display_name AS creator_name
      FROM review_sessions rs
      LEFT JOIN users u ON rs.created_by = u.id
      WHERE rs.id = ?`
