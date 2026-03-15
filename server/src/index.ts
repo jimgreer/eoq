@@ -15,6 +15,7 @@ import { setupAuth } from './auth/google.js';
 import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/sessions.js';
 import commentRoutes from './routes/comments.js';
+import collaboratorRoutes from './routes/collaborators.js';
 import { createSocketServer } from './socket/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,6 +59,7 @@ app.use(passport.session());
 app.use('/auth', authRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/sessions', commentRoutes);
+app.use('/api/sessions', collaboratorRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });

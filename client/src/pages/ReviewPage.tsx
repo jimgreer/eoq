@@ -8,6 +8,7 @@ import { DocumentViewer } from '../components/DocumentViewer';
 import { CommentSidebar } from '../components/CommentSidebar';
 import { SelectionPopover } from '../components/SelectionPopover';
 import { CommentDialog } from '../components/CommentDialog';
+import { ShareDialog } from '../components/ShareDialog';
 
 interface SessionData {
   id: string;
@@ -26,6 +27,7 @@ export function ReviewPage() {
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'doc' | 'comments'>('doc');
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Selection state
   const [pendingAnchor, setPendingAnchor] = useState<TextAnchor | null>(null);
@@ -150,6 +152,12 @@ export function ReviewPage() {
       <div className="review-subheader">
         <span className="review-session-title">{session.title}</span>
         {!session.is_active && <span className="review-session-closed">Closed</span>}
+        <button
+          className="btn btn-secondary btn-share"
+          onClick={() => setShowShareDialog(true)}
+        >
+          Share
+        </button>
       </div>
 
       {/* Mobile tab bar */}
@@ -202,6 +210,15 @@ export function ReviewPage() {
           quote={pendingAnchor.quote}
           onSubmit={handleSubmitComment}
           onCancel={handleCancelComment}
+        />
+      )}
+
+      {showShareDialog && user && (
+        <ShareDialog
+          sessionId={sessionId!}
+          sessionTitle={session.title}
+          currentUserEmail={user.email}
+          onClose={() => setShowShareDialog(false)}
         />
       )}
     </>

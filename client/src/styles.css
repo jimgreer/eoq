@@ -656,6 +656,247 @@ body {
   text-decoration: none;
 }
 
+/* Share button in subheader */
+.btn-share {
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+/* Share dialog */
+.share-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-dialog {
+  background: #fff;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.share-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.share-dialog-header h2 {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0;
+  color: #202124;
+  word-break: break-word;
+}
+
+.share-dialog-loading {
+  padding: 40px;
+  text-align: center;
+  color: #5f6368;
+}
+
+.share-add-form {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.share-add-form input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #1a73e8;
+  border-radius: 4px;
+  font-size: 14px;
+  outline: none;
+}
+
+.share-add-form input:focus {
+  border-color: #1a73e8;
+}
+
+.share-error {
+  padding: 8px 20px;
+  color: #c5221f;
+  font-size: 13px;
+  background: #fce8e6;
+}
+
+.share-section {
+  padding: 16px 20px;
+}
+
+.share-section h3 {
+  font-size: 13px;
+  font-weight: 500;
+  color: #5f6368;
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.share-people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.share-person:hover {
+  background: #f8f9fa;
+}
+
+.share-person-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.share-person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a73e8;
+  color: white;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.share-person-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-person-name {
+  font-size: 14px;
+  color: #202124;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-person-email {
+  font-size: 12px;
+  color: #5f6368;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-person-role {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+.pending-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #fef7e0;
+  color: #c77700;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+.btn-remove {
+  color: #5f6368;
+  font-size: 18px;
+}
+
+.btn-remove:hover {
+  color: #c5221f;
+  background: #fce8e6;
+}
+
+.share-access-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-access-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.share-access-option:hover {
+  background: #f8f9fa;
+}
+
+.share-access-option.selected {
+  border-color: #1a73e8;
+  background: #e8f0fe;
+}
+
+.share-access-option input {
+  display: none;
+}
+
+.share-access-icon {
+  font-size: 20px;
+  width: 32px;
+  text-align: center;
+}
+
+.share-access-info {
+  flex: 1;
+}
+
+.share-access-title {
+  font-size: 14px;
+  color: #202124;
+}
+
+.share-access-desc {
+  font-size: 12px;
+  color: #5f6368;
+  margin-top: 2px;
+}
+
+.share-dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-top: 1px solid #e8eaed;
+}
+
 /* Mobile tab bar - hidden on desktop */
 .mobile-tab-bar {
   display: none;

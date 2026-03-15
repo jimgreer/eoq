@@ -53,23 +53,40 @@ router.get('/', requireAuth, (_req, res) => {
   res.json(sessions);
 });
 
-// Get single session (with Drive permission check)
+// Get single session (with access control)
 router.get('/:id', requireAuth, async (req, res) => {
   const session = db.prepare('SELECT * FROM review_sessions WHERE id = ?').get(req.params.id) as any;
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
 
-  // If session is linked to a Google Doc, check Drive permissions (skip for creator)
   const user = req.user as any;
-  if (session.google_doc_id && session.created_by !== user.id) {
-    const { hasAccess, needsDriveAuth } = await checkDriveAccess(user.id, session.google_doc_id);
-    if (!hasAccess) {
-      return res.status(403).json({
-        error: 'You do not have access to the linked Google Doc',
-        needsDriveAuth,
-        google_doc_id: session.google_doc_id,
-      });
+  const isCreator = session.created_by === user.id;
+  const accessLevel = session.access_level || 'restricted';
+
+  // Check access permissions
+  if (!isCreator && accessLevel === 'restricted') {
+    // Check if user is a collaborator
+    const isCollaborator = db.prepare(
+      'SELECT 1 FROM session_collaborators WHERE session_id = ? AND email = ?'
+    ).get(req.params.id, user.email);
+
+    if (!isCollaborator) {
+      // If session is linked to a Google Doc, check Drive permissions as fallback
+      if (session.google_doc_id) {
+        const { hasAccess, needsDriveAuth } = await checkDriveAccess(user.id, session.google_doc_id);
+        if (!hasAccess) {
+          return res.status(403).json({
+            error: 'You do not have access to this session',
+            needsDriveAuth,
+            google_doc_id: session.google_doc_id,
+          });
+        }
+      } else {
+        return res.status(403).json({
+          error: 'You do not have access to this session',
+        });
+      }
     }
   }
 
