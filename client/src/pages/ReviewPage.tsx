@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { TextAnchor } from 'shared';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthProvider';
 import { useComments } from '../hooks/useComments';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { CommentSidebar } from '../components/CommentSidebar';
@@ -17,10 +18,11 @@ interface SessionData {
 
 export function ReviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const { user } = useAuth();
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState<{ needsDriveAuth: boolean } | null>(null);
-  const { threads, addComment, resolveComment } = useComments(sessionId);
+  const { threads, addComment, resolveComment, editComment, deleteComment } = useComments(sessionId);
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'doc' | 'comments'>('doc');
@@ -179,9 +181,12 @@ export function ReviewPage() {
         <CommentSidebar
           threads={threads}
           activeThreadId={activeThreadId}
+          currentUserId={user?.id}
           onThreadClick={setActiveThreadId}
           onReply={handleReply}
           onResolve={resolveComment}
+          onEdit={editComment}
+          onDelete={deleteComment}
           onQuoteClick={handleQuoteClick}
           className={mobileTab !== 'comments' ? 'mobile-hidden' : ''}
         />

@@ -37,6 +37,26 @@ export function useComments(sessionId: string | undefined) {
       );
     });
 
+    socket.on('comment:edited', (data: { comment_id: string; body: string; edited_at: string }) => {
+      setComments(prev =>
+        prev.map(c =>
+          c.id === data.comment_id ? { ...c, body: data.body, edited_at: data.edited_at } : c
+        )
+      );
+    });
+
+    socket.on('comment:deleted', (data: { comment_id: string; parent_id: string | null }) => {
+      setComments(prev => {
+        if (data.parent_id === null) {
+          // Top-level comment deleted, remove it and all its replies
+          return prev.filter(c => c.id !== data.comment_id && c.parent_id !== data.comment_id);
+        } else {
+          // Reply deleted
+          return prev.filter(c => c.id !== data.comment_id);
+        }
+      });
+    });
+
     // Re-fetch on reconnect (in case we missed events)
     socket.on('connect', () => {
       socket.emit('session:join', sessionId);
@@ -50,6 +70,8 @@ export function useComments(sessionId: string | undefined) {
       socket.emit('session:leave', sessionId);
       socket.off('comment:new');
       socket.off('comment:resolved');
+      socket.off('comment:edited');
+      socket.off('comment:deleted');
       socket.off('connect');
     };
   }, [sessionId]);
@@ -83,6 +105,38 @@ export function useComments(sessionId: string | undefined) {
     );
   }, []);
 
+  const editComment = useCallback((commentId: string, body: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      socketRef.current.emit(
+        'comment:edit',
+        { comment_id: commentId, body },
+        (result: any) => {
+          if (result.ok) {
+            resolve();
+          } else {
+            reject(new Error(result.error));
+          }
+        }
+      );
+    });
+  }, []);
+
+  const deleteComment = useCallback((commentId: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      socketRef.current.emit(
+        'comment:delete',
+        { comment_id: commentId },
+        (result: any) => {
+          if (result.ok) {
+            resolve();
+          } else {
+            reject(new Error(result.error));
+          }
+        }
+      );
+    });
+  }, []);
+
   // Group comments into threads (top-level + replies)
   const threads = comments
     .filter(c => c.parent_id === null)
@@ -91,5 +145,5 @@ export function useComments(sessionId: string | undefined) {
       replies: comments.filter(c => c.parent_id === parent.id),
     }));
 
-  return { threads, loading, addComment, resolveComment };
+  return { threads, loading, addComment, resolveComment, editComment, deleteComment };
 }

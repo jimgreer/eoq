@@ -33,6 +33,7 @@ export interface Comment {
   anchor: TextAnchor | null;
   resolved: boolean;
   created_at: string;
+  edited_at: string | null;
   user: Pick<User, 'id' | 'display_name' | 'email' | 'avatar_url'>;
   replies?: Comment[];
 }
@@ -41,6 +42,8 @@ export interface Comment {
 export interface ServerToClientEvents {
   'comment:new': (comment: Comment) => void;
   'comment:resolved': (data: { comment_id: string; resolved: boolean }) => void;
+  'comment:edited': (data: { comment_id: string; body: string; edited_at: string }) => void;
+  'comment:deleted': (data: { comment_id: string; parent_id: string | null }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -55,6 +58,14 @@ export interface ClientToServerEvents {
   ) => void;
   'comment:resolve': (
     data: { comment_id: string; resolved: boolean },
+    callback: (result: { ok: boolean; error?: string }) => void
+  ) => void;
+  'comment:edit': (
+    data: { comment_id: string; body: string },
+    callback: (result: { ok: boolean; edited_at?: string; error?: string }) => void
+  ) => void;
+  'comment:delete': (
+    data: { comment_id: string },
     callback: (result: { ok: boolean; error?: string }) => void
   ) => void;
   'session:join': (session_id: string) => void;

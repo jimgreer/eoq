@@ -332,7 +332,64 @@ body {
 .comment-author .time {
   font-size: 11px;
   color: #5f6368;
+}
+
+.comment-author .edited {
+  font-size: 11px;
+  color: #9aa0a6;
+  font-style: italic;
+}
+
+.comment-modify-actions {
   margin-left: auto;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.comment-entry:hover .comment-modify-actions {
+  opacity: 1;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #5f6368;
+}
+
+.btn-icon:hover {
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.btn-icon.btn-delete:hover {
+  background: #fce8e6;
+  color: #c5221f;
+}
+
+.edit-form {
+  display: flex;
+  gap: 6px;
+  padding-left: 32px;
+  align-items: center;
+}
+
+.edit-form input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .comment-body {

@@ -8,9 +8,12 @@ interface Thread extends Comment {
 interface Props {
   threads: Thread[];
   activeThreadId: string | null;
+  currentUserId?: number;
   onThreadClick: (threadId: string) => void;
   onReply: (parentId: string, body: string) => void;
   onResolve: (commentId: string, resolved: boolean) => void;
+  onEdit: (commentId: string, body: string) => Promise<void>;
+  onDelete: (commentId: string) => Promise<void>;
   onQuoteClick?: (threadId: string) => void;
   className?: string;
 }
@@ -18,9 +21,12 @@ interface Props {
 export function CommentSidebar({
   threads,
   activeThreadId,
+  currentUserId,
   onThreadClick,
   onReply,
   onResolve,
+  onEdit,
+  onDelete,
   onQuoteClick,
   className,
 }: Props) {
@@ -40,9 +46,12 @@ export function CommentSidebar({
             key={thread.id}
             thread={thread}
             isActive={thread.id === activeThreadId}
+            currentUserId={currentUserId}
             onClick={() => onThreadClick(thread.id)}
             onReply={body => onReply(thread.id, body)}
             onResolve={() => onResolve(thread.id, !thread.resolved)}
+            onEdit={onEdit}
+            onDelete={onDelete}
             onQuoteClick={onQuoteClick ? () => onQuoteClick(thread.id) : undefined}
           />
         ))}
@@ -54,16 +63,22 @@ export function CommentSidebar({
 function CommentThread({
   thread,
   isActive,
+  currentUserId,
   onClick,
   onReply,
   onResolve,
+  onEdit,
+  onDelete,
   onQuoteClick,
 }: {
   thread: Thread;
   isActive: boolean;
+  currentUserId?: number;
   onClick: () => void;
   onReply: (body: string) => void;
   onResolve: () => void;
+  onEdit: (commentId: string, body: string) => Promise<void>;
+  onDelete: (commentId: string) => Promise<void>;
   onQuoteClick?: () => void;
 }) {
   const [replyText, setReplyText] = useState('');
@@ -97,9 +112,20 @@ function CommentThread({
             : thread.anchor.quote}"
         </div>
       )}
-      <CommentEntry comment={thread} />
+      <CommentEntry
+        comment={thread}
+        canModify={currentUserId === thread.user_id}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
       {thread.replies?.map(reply => (
-        <CommentEntry key={reply.id} comment={reply} />
+        <CommentEntry
+          key={reply.id}
+          comment={reply}
+          canModify={currentUserId === reply.user_id}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       ))}
       <div className="comment-actions">
         <button
@@ -141,11 +167,47 @@ function CommentThread({
   );
 }
 
-function CommentEntry({ comment }: { comment: Comment }) {
+function CommentEntry({
+  comment,
+  canModify,
+  onEdit,
+  onDelete,
+}: {
+  comment: Comment;
+  canModify: boolean;
+  onEdit: (commentId: string, body: string) => Promise<void>;
+  onDelete: (commentId: string) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.body);
+
   const time = new Date(comment.created_at + 'Z').toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim() || editText.trim() === comment.body) {
+      setIsEditing(false);
+      setEditText(comment.body);
+      return;
+    }
+    try {
+      await onEdit(comment.id, editText.trim());
+      setIsEditing(false);
+    } catch {
+      alert('Failed to save edit');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Delete this comment?')) return;
+    try {
+      await onDelete(comment.id);
+    } catch {
+      alert('Failed to delete comment');
+    }
+  };
 
   return (
     <div className="comment-entry">
@@ -155,8 +217,63 @@ function CommentEntry({ comment }: { comment: Comment }) {
         )}
         <span className="name">{comment.user.display_name}</span>
         <span className="time">{time}</span>
+        {comment.edited_at && <span className="edited">(edited)</span>}
+        {canModify && !isEditing && (
+          <span className="comment-modify-actions">
+            <button
+              className="btn-icon"
+              title="Edit"
+              onClick={e => {
+                e.stopPropagation();
+                setIsEditing(true);
+                setEditText(comment.body);
+              }}
+            >
+              &#9998;
+            </button>
+            <button
+              className="btn-icon btn-delete"
+              title="Delete"
+              onClick={e => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+            >
+              &times;
+            </button>
+          </span>
+        )}
       </div>
-      <div className="comment-body">{comment.body}</div>
+      {isEditing ? (
+        <div className="edit-form" onClick={e => e.stopPropagation()}>
+          <input
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleSaveEdit();
+              if (e.key === 'Escape') {
+                setIsEditing(false);
+                setEditText(comment.body);
+              }
+            }}
+            autoFocus
+          />
+          <button className="btn btn-primary btn-sm" onClick={handleSaveEdit}>
+            Save
+          </button>
+          <button
+            className="btn btn-text btn-sm"
+            onClick={() => {
+              setIsEditing(false);
+              setEditText(comment.body);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="comment-body">{comment.body}</div>
+      )}
     </div>
   );
 }

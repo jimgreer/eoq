@@ -10,7 +10,7 @@ router.get('/:sessionId/comments', requireAuth, (req, res) => {
     `SELECT c.id, c.session_id, c.parent_id, c.user_id, c.body,
             c.anchor_css_selector, c.anchor_start_offset,
             c.anchor_end_offset, c.anchor_quote,
-            c.resolved, c.created_at,
+            c.resolved, c.created_at, c.edited_at,
             u.display_name, u.email, u.avatar_url
      FROM comments c
      JOIN users u ON c.user_id = u.id
@@ -34,6 +34,7 @@ router.get('/:sessionId/comments', requireAuth, (req, res) => {
       : null,
     resolved: !!row.resolved,
     created_at: row.created_at,
+    edited_at: row.edited_at || null,
     user: {
       id: row.user_id,
       display_name: row.display_name,

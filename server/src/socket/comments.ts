@@ -62,6 +62,7 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
         anchor: anchor || null,
         resolved: !!row.resolved,
         created_at: row.created_at,
+        edited_at: null,
         user: {
           id: user.id,
           display_name: user.display_name,
@@ -100,6 +101,78 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
     } catch (err) {
       console.error('Error resolving comment:', err);
       callback({ ok: false, error: 'Failed to resolve comment' });
+    }
+  });
+
+  socket.on('comment:edit', (data, callback) => {
+    try {
+      const { comment_id, body } = data;
+
+      if (!body?.trim()) {
+        return callback({ ok: false, error: 'Comment body is required' });
+      }
+
+      const comment = db.prepare(
+        'SELECT session_id, user_id FROM comments WHERE id = ?'
+      ).get(comment_id) as any;
+
+      if (!comment) {
+        return callback({ ok: false, error: 'Comment not found' });
+      }
+
+      if (comment.user_id !== user.id) {
+        return callback({ ok: false, error: 'You can only edit your own comments' });
+      }
+
+      const edited_at = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      db.prepare('UPDATE comments SET body = ?, edited_at = ? WHERE id = ?').run(
+        body.trim(),
+        edited_at,
+        comment_id
+      );
+
+      io.to(`session:${comment.session_id}`).emit('comment:edited', {
+        comment_id,
+        body: body.trim(),
+        edited_at,
+      });
+      callback({ ok: true, edited_at });
+    } catch (err) {
+      console.error('Error editing comment:', err);
+      callback({ ok: false, error: 'Failed to edit comment' });
+    }
+  });
+
+  socket.on('comment:delete', (data, callback) => {
+    try {
+      const { comment_id } = data;
+
+      const comment = db.prepare(
+        'SELECT session_id, user_id, parent_id FROM comments WHERE id = ?'
+      ).get(comment_id) as any;
+
+      if (!comment) {
+        return callback({ ok: false, error: 'Comment not found' });
+      }
+
+      if (comment.user_id !== user.id) {
+        return callback({ ok: false, error: 'You can only delete your own comments' });
+      }
+
+      // If this is a top-level comment, also delete all replies
+      db.prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?').run(
+        comment_id,
+        comment_id
+      );
+
+      io.to(`session:${comment.session_id}`).emit('comment:deleted', {
+        comment_id,
+        parent_id: comment.parent_id,
+      });
+      callback({ ok: true });
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+      callback({ ok: false, error: 'Failed to delete comment' });
     }
   });
 }
