@@ -93,13 +93,14 @@ router.get('/:id', requireAuth, async (req, res) => {
   res.json(session);
 });
 
+// Extract title from HTML document
+function extractTitle(html: string): string {
+  const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  return titleMatch ? titleMatch[1].trim() : 'Untitled Document';
+}
+
 // Create session
 router.post('/', requireAuth, upload.single('file'), (req, res) => {
-  const title = req.body.title;
-  if (!title) {
-    return res.status(400).json({ error: 'Title is required' });
-  }
-
   let htmlContent: string;
   if (req.file) {
     htmlContent = req.file.buffer.toString('utf-8');
@@ -109,6 +110,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
     return res.status(400).json({ error: 'HTML file or html_content is required' });
   }
 
+  const title = extractTitle(htmlContent);
   const sanitized = sanitizeHtml(htmlContent);
   const processed = extractBody(sanitized);
 

@@ -17,7 +17,6 @@ export function SessionListPage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [googleDocUrl, setGoogleDocUrl] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -31,11 +30,10 @@ export function SessionListPage() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !file) return;
+    if (!file) return;
 
     setUploading(true);
     const formData = new FormData();
-    formData.append('title', title);
     formData.append('file', file);
     if (googleDocUrl.trim()) {
       formData.append('google_doc_url', googleDocUrl.trim());
@@ -44,7 +42,6 @@ export function SessionListPage() {
     try {
       const res = await api.post('/sessions', formData);
       setSessions(prev => [res.data, ...prev]);
-      setTitle('');
       setFile(null);
       setGoogleDocUrl('');
     } catch (err: any) {
@@ -75,22 +72,14 @@ export function SessionListPage() {
         <h2>How it works</h2>
         <ol>
           <li>Open your Google Doc and go to <strong>File &rarr; Download &rarr; Web Page (.html)</strong></li>
-          <li>Upload the HTML file below with a session title</li>
+          <li>Upload the HTML file below</li>
           <li>Share the review link with your team</li>
-          <li>Optionally paste the Google Doc URL to restrict access to people who can view the original doc</li>
           <li>Everyone can select text in the document and leave comments in real time</li>
         </ol>
       </div>
 
       <h2>New Review Session</h2>
       <form className="upload-form" onSubmit={handleUpload}>
-        <input
-          type="text"
-          placeholder="Session title (e.g., Q1 2026 Review)"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          required
-        />
         <input
           type="file"
           accept=".html,.htm"
@@ -117,22 +106,14 @@ export function SessionListPage() {
                 <div>
                   <div className="title">{s.title}</div>
                   <div className="meta">
-                    Created {new Date(s.created_at + 'Z').toLocaleDateString()}
+                    {new Date(s.created_at + 'Z').toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
                     {s.creator_name && ` by ${s.creator_name}`}
-                    {s.google_doc_id && (
-                      <div className="restricted-info">
-                        Restricted to viewers of{' '}
-                        <a
-                          href={`https://docs.google.com/document/d/${s.google_doc_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="doc-link"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          source doc
-                        </a>
-                      </div>
-                    )}
                     {!s.is_active && ' (Closed)'}
                   </div>
                 </div>
