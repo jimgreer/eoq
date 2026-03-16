@@ -351,6 +351,8 @@ body {
 }
 
 .sidebar-header {
+  display: flex;
+  align-items: center;
   padding: 16px;
   border-bottom: 1px solid #dadce0;
   font-weight: 500;
@@ -389,6 +391,63 @@ body {
 
 .comment-thread.resolved.collapsed {
   cursor: pointer;
+}
+
+/* Compact thread mode */
+.comment-thread.compact {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.comment-thread.compact:hover {
+  background: #f8f9fa;
+}
+
+.compact-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.compact-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.compact-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: #202124;
+  flex-shrink: 0;
+}
+
+.compact-text {
+  font-size: 13px;
+  color: #5f6368;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.compact-replies {
+  font-size: 12px;
+  color: #1a73e8;
+  flex-shrink: 0;
+}
+
+.compact-expand {
+  color: #9aa0a6;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.btn-collapse {
+  margin-left: auto;
 }
 
 .comment-thread.resolved.collapsed:hover {
@@ -433,6 +492,7 @@ body {
 
 .comment-entry {
   padding: 10px 12px;
+  position: relative;
 }
 
 .comment-entry + .comment-entry {
@@ -559,11 +619,13 @@ body {
 }
 
 .add-reaction-wrapper {
-  position: relative;
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
 }
 
 .add-reaction {
-  font-size: 16px;
+  font-size: 14px;
   color: #9aa0a6;
   opacity: 0;
   transition: opacity 0.15s;

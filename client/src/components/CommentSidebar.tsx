@@ -16,8 +16,11 @@ interface Props {
   onDelete: (commentId: string) => Promise<void>;
   onReact: (commentId: string, emoji: string) => Promise<boolean>;
   onQuoteClick?: (threadId: string) => void;
+  onAddTestComments?: () => void;
   className?: string;
 }
+
+const COMPACT_THRESHOLD = 5; // Switch to compact mode when more than this many threads
 
 export function CommentSidebar({
   threads,
@@ -30,12 +33,37 @@ export function CommentSidebar({
   onDelete,
   onReact,
   onQuoteClick,
+  onAddTestComments,
   className,
 }: Props) {
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const useCompactMode = threads.length > COMPACT_THRESHOLD;
+
+  const toggleExpanded = (threadId: string) => {
+    setExpandedThreads(prev => {
+      const next = new Set(prev);
+      if (next.has(threadId)) {
+        next.delete(threadId);
+      } else {
+        next.add(threadId);
+      }
+      return next;
+    });
+  };
+
   return (
     <div className={`comment-sidebar ${className || ''}`}>
       <div className="sidebar-header">
         Comments ({threads.length})
+        {onAddTestComments && (
+          <button
+            className="btn btn-text btn-sm"
+            onClick={onAddTestComments}
+            style={{ marginLeft: 'auto', fontSize: 11 }}
+          >
+            +6 test
+          </button>
+        )}
       </div>
       <div className="comment-list">
         {threads.length === 0 && (
@@ -43,21 +71,69 @@ export function CommentSidebar({
             Select text in the document to add a comment.
           </p>
         )}
-        {threads.map(thread => (
-          <CommentThread
-            key={thread.id}
-            thread={thread}
-            isActive={thread.id === activeThreadId}
-            currentUserId={currentUserId}
-            onClick={() => onThreadClick(thread.id)}
-            onReply={body => onReply(thread.id, body)}
-            onResolve={() => onResolve(thread.id, !thread.resolved)}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onReact={onReact}
-            onQuoteClick={onQuoteClick ? () => onQuoteClick(thread.id) : undefined}
-          />
-        ))}
+        {threads.map(thread => {
+          const isExpanded = expandedThreads.has(thread.id) || thread.id === activeThreadId;
+          const showCompact = useCompactMode && !isExpanded && !thread.resolved;
+
+          return showCompact ? (
+            <CompactThread
+              key={thread.id}
+              thread={thread}
+              isActive={thread.id === activeThreadId}
+              onClick={() => {
+                toggleExpanded(thread.id);
+                onThreadClick(thread.id);
+              }}
+            />
+          ) : (
+            <CommentThread
+              key={thread.id}
+              thread={thread}
+              isActive={thread.id === activeThreadId}
+              currentUserId={currentUserId}
+              onClick={() => onThreadClick(thread.id)}
+              onReply={body => onReply(thread.id, body)}
+              onResolve={() => onResolve(thread.id, !thread.resolved)}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onReact={onReact}
+              onQuoteClick={onQuoteClick ? () => onQuoteClick(thread.id) : undefined}
+              onCollapse={useCompactMode ? () => toggleExpanded(thread.id) : undefined}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CompactThread({
+  thread,
+  isActive,
+  onClick,
+}: {
+  thread: Thread;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const replyCount = thread.replies?.length || 0;
+
+  return (
+    <div
+      className={`comment-thread compact${isActive ? ' active' : ''}`}
+      data-thread-id={thread.id}
+      onClick={onClick}
+    >
+      <div className="compact-content">
+        {thread.user.avatar_url && (
+          <img src={thread.user.avatar_url} alt="" className="compact-avatar" referrerPolicy="no-referrer" />
+        )}
+        <span className="compact-name">{thread.user.display_name}</span>
+        <span className="compact-text">{thread.body}</span>
+        {replyCount > 0 && (
+          <span className="compact-replies">+{replyCount}</span>
+        )}
+        <span className="compact-expand">&#9662;</span>
       </div>
     </div>
   );
@@ -74,6 +150,7 @@ function CommentThread({
   onDelete,
   onReact,
   onQuoteClick,
+  onCollapse,
 }: {
   thread: Thread;
   isActive: boolean;
@@ -85,6 +162,7 @@ function CommentThread({
   onDelete: (commentId: string) => Promise<void>;
   onReact: (commentId: string, emoji: string) => Promise<boolean>;
   onQuoteClick?: () => void;
+  onCollapse?: () => void;
 }) {
   const [replyText, setReplyText] = useState('');
   const [showReply, setShowReply] = useState(false);
@@ -175,6 +253,18 @@ function CommentThread({
             >
               {thread.resolved ? 'Reopen' : 'Resolve'}
             </button>
+            {onCollapse && (
+              <button
+                className="btn btn-text btn-collapse"
+                onClick={e => {
+                  e.stopPropagation();
+                  onCollapse();
+                }}
+                title="Collapse"
+              >
+                &#9652;
+              </button>
+            )}
           </div>
           {showReply && (
             <div className="reply-form" onClick={e => e.stopPropagation()}>
@@ -319,39 +409,41 @@ function CommentEntry({
       ) : (
         <>
           <div className="comment-body">{comment.body}</div>
-          <div className="comment-reactions" onClick={e => e.stopPropagation()}>
-            {comment.reactions?.map(reaction => (
-              <button
-                key={reaction.emoji}
-                className={`reaction-chip${reaction.hasReacted ? ' reacted' : ''}`}
-                title={reaction.users.map(u => u.display_name).join(', ')}
-                onClick={() => handleReact(reaction.emoji)}
-              >
-                {reaction.emoji} {reaction.count}
-              </button>
-            ))}
-            <div className="add-reaction-wrapper">
-              <button
-                className="btn-icon add-reaction"
-                title="Add reaction"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              >
-                +
-              </button>
-              {showEmojiPicker && (
-                <div className="emoji-picker">
-                  {EMOJI_OPTIONS.map(emoji => (
-                    <button
-                      key={emoji}
-                      className="emoji-option"
-                      onClick={() => handleReact(emoji)}
-                    >
-                      {emoji}
+          {comment.reactions && comment.reactions.length > 0 && (
+            <div className="comment-reactions" onClick={e => e.stopPropagation()}>
+              {comment.reactions.map(reaction => (
+                <button
+                  key={reaction.emoji}
+                  className={`reaction-chip${reaction.hasReacted ? ' reacted' : ''}`}
+                  title={reaction.users.map(u => u.display_name).join(', ')}
+                  onClick={() => handleReact(reaction.emoji)}
+                >
+                  {reaction.emoji} {reaction.count}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="add-reaction-wrapper" onClick={e => e.stopPropagation()}>
+            <button
+              className="btn-icon add-reaction"
+              title="Add reaction"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            >
+              ☺
+            </button>
+            {showEmojiPicker && (
+              <div className="emoji-picker">
+                {EMOJI_OPTIONS.map(emoji => (
+                  <button
+                    key={emoji}
+                    className="emoji-option"
+                    onClick={() => handleReact(emoji)}
+                  >
+                    {emoji}
                     </button>
                   ))}
                 </div>
               )}
-            </div>
           </div>
         </>
       )}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
@@ -42,12 +42,21 @@ export function SessionListPage() {
   const [showOwnedOnly, setShowOwnedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
+  const fetchSessions = useCallback((query?: string) => {
+    const params = query ? `?q=${encodeURIComponent(query)}` : '';
     api
-      .get('/sessions')
+      .get(`/sessions${params}`)
       .then(res => setSessions(res.data))
       .finally(() => setLoading(false));
   }, []);
+
+  // Initial fetch and debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchSessions(searchQuery || undefined);
+    }, searchQuery ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [searchQuery, fetchSessions]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,16 +98,9 @@ export function SessionListPage() {
 
   if (loading) return <div className="loading">Loading...</div>;
 
+  // Ownership filter (search is done server-side)
   const filteredSessions = sessions.filter(s => {
-    // Filter by ownership
     if (showOwnedOnly && user && s.created_by !== user.id) return false;
-    // Filter by search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesTitle = s.title.toLowerCase().includes(query);
-      const matchesCreator = s.creator_name?.toLowerCase().includes(query);
-      if (!matchesTitle && !matchesCreator) return false;
-    }
     return true;
   });
 

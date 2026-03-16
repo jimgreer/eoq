@@ -12,6 +12,13 @@ import { extractGoogleDocId, checkDriveAccess } from '../services/drivePermissio
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB for zips with images
 
+// Organization domain for workspace-style sharing (will be configurable later)
+export const ORG_DOMAIN = 'jimgreer.org';
+
+function getEmailDomain(email: string): string {
+  return email.split('@')[1]?.toLowerCase() || '';
+}
+
 function sanitizeHtml(rawHtml: string): string {
   const dom = new JSDOM('');
   const purify = DOMPurify(dom.window as any);
@@ -21,6 +28,25 @@ function sanitizeHtml(rawHtml: string): string {
     ADD_ATTR: ['class', 'style', 'id'],
     WHOLE_DOCUMENT: true,
   });
+}
+
+// Extract plain text from HTML for search indexing
+function extractText(html: string): string {
+  // Remove style and script tags and their contents
+  let text = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  // Remove all HTML tags
+  text = text.replace(/<[^>]+>/g, ' ');
+  // Decode common HTML entities
+  text = text.replace(/&nbsp;/g, ' ');
+  text = text.replace(/&amp;/g, '&');
+  text = text.replace(/&lt;/g, '<');
+  text = text.replace(/&gt;/g, '>');
+  text = text.replace(/&quot;/g, '"');
+  text = text.replace(/&#39;/g, "'");
+  // Collapse whitespace
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
 }
 
 function extractBody(html: string): string {
@@ -47,22 +73,36 @@ function extractBody(html: string): string {
 // List sessions (only those user has access to)
 router.get('/', requireAuth, (req, res) => {
   const user = req.user as any;
+  const searchQuery = req.query.q as string | undefined;
+  const userDomain = getEmailDomain(user.email);
+  const isOrgMember = userDomain === ORG_DOMAIN;
 
-  const sessions = db.prepare(
-    `SELECT
-       rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id,
-       rs.access_level,
-       u.display_name AS creator_name,
-       (SELECT COUNT(*) FROM comments c WHERE c.session_id = rs.id) AS comment_count,
-       (SELECT MAX(c.created_at) FROM comments c WHERE c.session_id = rs.id) AS last_activity
-     FROM review_sessions rs
-     LEFT JOIN users u ON rs.created_by = u.id
-     WHERE rs.created_by = ?
-        OR rs.access_level = 'link'
-        OR EXISTS (SELECT 1 FROM session_collaborators sc WHERE sc.session_id = rs.id AND sc.email = ?)
-     ORDER BY rs.created_at DESC`
-  ).all(user.id, user.email);
+  let sql = `
+    SELECT
+      rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id,
+      rs.access_level,
+      u.display_name AS creator_name,
+      (SELECT COUNT(*) FROM comments c WHERE c.session_id = rs.id) AS comment_count,
+      (SELECT MAX(c.created_at) FROM comments c WHERE c.session_id = rs.id) AS last_activity
+    FROM review_sessions rs
+    LEFT JOIN users u ON rs.created_by = u.id
+    WHERE (rs.created_by = ?
+       OR rs.access_level = 'link'
+       OR (rs.access_level = 'organization' AND ?)
+       OR EXISTS (SELECT 1 FROM session_collaborators sc WHERE sc.session_id = rs.id AND sc.email = ?))
+  `;
 
+  const params: any[] = [user.id, isOrgMember ? 1 : 0, user.email];
+
+  if (searchQuery && searchQuery.trim()) {
+    sql += ` AND (rs.title LIKE ? OR rs.search_text LIKE ? OR u.display_name LIKE ?)`;
+    const pattern = `%${searchQuery.trim()}%`;
+    params.push(pattern, pattern, pattern);
+  }
+
+  sql += ` ORDER BY rs.created_at DESC`;
+
+  const sessions = db.prepare(sql).all(...params);
   res.json(sessions);
 });
 
@@ -76,29 +116,43 @@ router.get('/:id', requireAuth, async (req, res) => {
   const user = req.user as any;
   const isCreator = session.created_by === user.id;
   const accessLevel = session.access_level || 'restricted';
+  const userDomain = getEmailDomain(user.email);
+  const isOrgMember = userDomain === ORG_DOMAIN;
 
   // Check access permissions
-  if (!isCreator && accessLevel === 'restricted') {
-    // Check if user is a collaborator
-    const isCollaborator = db.prepare(
-      'SELECT 1 FROM session_collaborators WHERE session_id = ? AND email = ?'
-    ).get(req.params.id, user.email);
+  // 'link' = anyone, 'organization' = org members, 'restricted' = explicit collaborators only
+  if (!isCreator) {
+    if (accessLevel === 'link') {
+      // Anyone with the link can access
+    } else if (accessLevel === 'organization') {
+      // Only organization members can access
+      if (!isOrgMember) {
+        return res.status(403).json({
+          error: 'This session is only accessible to organization members',
+        });
+      }
+    } else {
+      // accessLevel === 'restricted' - check explicit collaborators
+      const isCollaborator = db.prepare(
+        'SELECT 1 FROM session_collaborators WHERE session_id = ? AND email = ?'
+      ).get(req.params.id, user.email);
 
-    if (!isCollaborator) {
-      // If session is linked to a Google Doc, check Drive permissions as fallback
-      if (session.google_doc_id) {
-        const { hasAccess, needsDriveAuth } = await checkDriveAccess(user.id, session.google_doc_id);
-        if (!hasAccess) {
+      if (!isCollaborator) {
+        // If session is linked to a Google Doc, check Drive permissions as fallback
+        if (session.google_doc_id) {
+          const { hasAccess, needsDriveAuth } = await checkDriveAccess(user.id, session.google_doc_id);
+          if (!hasAccess) {
+            return res.status(403).json({
+              error: 'You do not have access to this session',
+              needsDriveAuth,
+              google_doc_id: session.google_doc_id,
+            });
+          }
+        } else {
           return res.status(403).json({
             error: 'You do not have access to this session',
-            needsDriveAuth,
-            google_doc_id: session.google_doc_id,
           });
         }
-      } else {
-        return res.status(403).json({
-          error: 'You do not have access to this session',
-        });
       }
     }
   }
@@ -199,6 +253,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
 
   const sanitized = skipSanitize ? htmlContent : sanitizeHtml(htmlContent);
   const processed = extractBody(sanitized);
+  const searchText = extractText(htmlContent);
 
   // Extract Google Doc ID if a URL was provided
   const googleDocUrl = req.body.google_doc_url;
@@ -213,8 +268,8 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
   const user = req.user as any;
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO review_sessions (id, title, html_content, created_by, google_doc_id) VALUES (?, ?, ?, ?, ?)'
-  ).run(id, title, processed, user.id, googleDocId);
+    'INSERT INTO review_sessions (id, title, html_content, search_text, created_by, google_doc_id) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, title, processed, searchText, user.id, googleDocId);
 
   const session = db.prepare(
     `SELECT rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id, u.display_name AS creator_name

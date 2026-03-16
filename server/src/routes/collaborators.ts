@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import { db } from '../db.js';
+import { ORG_DOMAIN } from './sessions.js';
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router.get('/:sessionId/collaborators', requireAuth, (req, res) => {
 
   res.json({
     access_level: session.access_level || 'restricted',
+    org_domain: ORG_DOMAIN,
     owner: {
       id: creator.id,
       email: creator.email,
@@ -171,7 +173,7 @@ router.patch('/:sessionId/access', requireAuth, (req, res) => {
   const { sessionId } = req.params;
   const { access_level } = req.body;
 
-  if (!['restricted', 'link'].includes(access_level)) {
+  if (!['restricted', 'organization', 'link'].includes(access_level)) {
     return res.status(400).json({ error: 'Invalid access level' });
   }
 

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { db } from './db.js';
+import { db, backfillSearchText } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,6 +38,9 @@ for (const file of files) {
   db.prepare('INSERT INTO _migrations (filename) VALUES (?)').run(file);
   console.log(`  Done.`);
 }
+
+// Backfill search_text for existing sessions
+backfillSearchText();
 
 db.close();
 console.log('All migrations complete.');

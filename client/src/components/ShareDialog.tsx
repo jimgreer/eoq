@@ -25,7 +25,8 @@ interface Props {
 
 export function ShareDialog({ sessionId, sessionTitle, currentUserEmail, onClose }: Props) {
   const [loading, setLoading] = useState(true);
-  const [accessLevel, setAccessLevel] = useState<'restricted' | 'link'>('restricted');
+  const [accessLevel, setAccessLevel] = useState<'restricted' | 'organization' | 'link'>('restricted');
+  const [orgDomain, setOrgDomain] = useState<string>('');
   const [owner, setOwner] = useState<Owner | null>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [newEmail, setNewEmail] = useState('');
@@ -39,6 +40,7 @@ export function ShareDialog({ sessionId, sessionTitle, currentUserEmail, onClose
     api.get(`/sessions/${sessionId}/collaborators`)
       .then(res => {
         setAccessLevel(res.data.access_level);
+        setOrgDomain(res.data.org_domain || '');
         setOwner(res.data.owner);
         setCollaborators(res.data.collaborators);
       })
@@ -75,7 +77,7 @@ export function ShareDialog({ sessionId, sessionTitle, currentUserEmail, onClose
     }
   };
 
-  const handleAccessLevelChange = async (level: 'restricted' | 'link') => {
+  const handleAccessLevelChange = async (level: 'restricted' | 'organization' | 'link') => {
     try {
       await api.patch(`/sessions/${sessionId}/access`, { access_level: level });
       setAccessLevel(level);
@@ -193,6 +195,22 @@ export function ShareDialog({ sessionId, sessionTitle, currentUserEmail, onClose
                     <div className="share-access-desc">Only people with access can open</div>
                   </div>
                 </label>
+                {orgDomain && (
+                  <label className={`share-access-option${accessLevel === 'organization' ? ' selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="access"
+                      checked={accessLevel === 'organization'}
+                      onChange={() => handleAccessLevelChange('organization')}
+                      disabled={!isOwner}
+                    />
+                    <div className="share-access-icon">&#127970;</div>
+                    <div className="share-access-info">
+                      <div className="share-access-title">Anyone at {orgDomain}</div>
+                      <div className="share-access-desc">Anyone in the organization can access</div>
+                    </div>
+                  </label>
+                )}
                 <label className={`share-access-option${accessLevel === 'link' ? ' selected' : ''}`}>
                   <input
                     type="radio"

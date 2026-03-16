@@ -107,6 +107,21 @@ export function ReviewPage() {
     }, 50);
   }, []);
 
+  // Dev helper: add test comments
+  const handleAddTestComments = useCallback(async () => {
+    const testComments = [
+      'This is a great point, I think we should expand on it.',
+      'I have some concerns about this section.',
+      'Can we get more data to support this claim?',
+      'Love this! Very well written.',
+      'This needs to be reviewed by legal before we proceed.',
+      'Consider rephrasing for clarity.',
+    ];
+    for (const body of testComments) {
+      await addComment({ body, anchor: { quote: 'Test selection', start: 0, end: 10 } });
+    }
+  }, [addComment]);
+
   // Clear popover on click outside
   useEffect(() => {
     const handleClick = () => {
@@ -197,6 +212,7 @@ export function ReviewPage() {
           onDelete={deleteComment}
           onReact={toggleReaction}
           onQuoteClick={handleQuoteClick}
+          onAddTestComments={handleAddTestComments}
           className={mobileTab !== 'comments' ? 'mobile-hidden' : ''}
         />
       </div>
