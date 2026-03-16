@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Comment } from 'shared';
 
 interface Thread extends Comment {
@@ -36,20 +36,107 @@ export function CommentSidebar({
   onAddTestComments,
   className,
 }: Props) {
-  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  // Track manually expanded/collapsed threads
+  const [manuallyExpanded, setManuallyExpanded] = useState<Set<string>>(new Set());
+  const [manuallyCollapsed, setManuallyCollapsed] = useState<Set<string>>(new Set());
+
+  // Track threads that existed on initial load (they stay expanded by default)
+  const initialThreadIds = useRef<Set<string>>(new Set());
+  const [initialized, setInitialized] = useState(false);
+
+  // Track off-screen threads for auto-collapse
+  const [offScreenThreads, setOffScreenThreads] = useState<Set<string>>(new Set());
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Initialize with existing threads on first render
+  useEffect(() => {
+    if (!initialized && threads.length > 0) {
+      initialThreadIds.current = new Set(threads.map(t => t.id));
+      setInitialized(true);
+    }
+  }, [threads, initialized]);
+
+  // Set up IntersectionObserver to track off-screen threads
+  useEffect(() => {
+    if (!listRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setOffScreenThreads(prev => {
+          const next = new Set(prev);
+          entries.forEach(entry => {
+            const threadId = entry.target.getAttribute('data-thread-id');
+            if (threadId) {
+              if (entry.isIntersecting) {
+                next.delete(threadId);
+              } else {
+                next.add(threadId);
+              }
+            }
+          });
+          return next;
+        });
+      },
+      { root: listRef.current, threshold: 0 }
+    );
+
+    // Observe all thread elements
+    const threadElements = listRef.current.querySelectorAll('.comment-thread');
+    threadElements.forEach(el => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [threads]);
+
   const useCompactMode = threads.length > COMPACT_THRESHOLD;
 
-  const toggleExpanded = (threadId: string) => {
-    setExpandedThreads(prev => {
-      const next = new Set(prev);
-      if (next.has(threadId)) {
+  const toggleExpanded = useCallback((threadId: string) => {
+    // If manually expanding, remove from collapsed and add to expanded
+    if (manuallyCollapsed.has(threadId) || !manuallyExpanded.has(threadId)) {
+      setManuallyCollapsed(prev => {
+        const next = new Set(prev);
         next.delete(threadId);
-      } else {
-        next.add(threadId);
-      }
-      return next;
-    });
-  };
+        return next;
+      });
+      setManuallyExpanded(prev => new Set(prev).add(threadId));
+    } else {
+      // If manually collapsing, remove from expanded and add to collapsed
+      setManuallyExpanded(prev => {
+        const next = new Set(prev);
+        next.delete(threadId);
+        return next;
+      });
+      setManuallyCollapsed(prev => new Set(prev).add(threadId));
+    }
+  }, [manuallyExpanded, manuallyCollapsed]);
+
+  // Determine if a thread should be shown expanded
+  const shouldShowExpanded = useCallback((thread: Thread): boolean => {
+    // Active thread is always expanded
+    if (thread.id === activeThreadId) return true;
+
+    // Manually expanded threads stay expanded
+    if (manuallyExpanded.has(thread.id)) return true;
+
+    // Manually collapsed threads stay collapsed
+    if (manuallyCollapsed.has(thread.id)) return false;
+
+    // Your own comments always show expanded
+    if (thread.user_id === currentUserId) return true;
+
+    // Resolved threads have their own collapse logic
+    if (thread.resolved) return false;
+
+    // Initial threads (existed on page load) stay expanded
+    if (initialThreadIds.current.has(thread.id)) return true;
+
+    // In compact mode, new threads start collapsed
+    if (useCompactMode) return false;
+
+    // Off-screen threads get collapsed (only in compact mode with many threads)
+    if (useCompactMode && offScreenThreads.has(thread.id)) return false;
+
+    return true;
+  }, [activeThreadId, manuallyExpanded, manuallyCollapsed, currentUserId, useCompactMode, offScreenThreads]);
 
   return (
     <div className={`comment-sidebar ${className || ''}`}>
@@ -65,14 +152,14 @@ export function CommentSidebar({
           </button>
         )}
       </div>
-      <div className="comment-list">
+      <div className="comment-list" ref={listRef}>
         {threads.length === 0 && (
           <p style={{ padding: 16, color: '#5f6368', fontSize: 14 }}>
             Select text in the document to add a comment.
           </p>
         )}
         {threads.map(thread => {
-          const isExpanded = expandedThreads.has(thread.id) || thread.id === activeThreadId;
+          const isExpanded = shouldShowExpanded(thread);
           const showCompact = useCompactMode && !isExpanded && !thread.resolved;
 
           return showCompact ? (
