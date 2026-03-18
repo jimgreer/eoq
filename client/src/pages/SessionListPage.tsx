@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -32,14 +32,12 @@ function formatRelativeTime(dateStr: string): string {
 
 export function SessionListPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState<File | null>(null);
-  const [googleDocUrl, setGoogleDocUrl] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [newSessionId, setNewSessionId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'created' | 'activity' | 'title'>('created');
-  const [showOwnedOnly, setShowOwnedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchSessions = useCallback((query?: string) => {
@@ -65,17 +63,11 @@ export function SessionListPage() {
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    if (googleDocUrl.trim()) {
-      formData.append('google_doc_url', googleDocUrl.trim());
-    }
 
     try {
       const res = await api.post('/sessions', formData);
-      setSessions(prev => [res.data, ...prev]);
       setFile(null);
-      setGoogleDocUrl('');
-      setNewSessionId(res.data.id);
-      setTimeout(() => setNewSessionId(null), 3000);
+      navigate(`/review/${res.data.id}`, { state: { newSession: true } });
     } catch (err: any) {
       alert(err.response?.data?.error || 'Upload failed');
     } finally {
@@ -98,11 +90,8 @@ export function SessionListPage() {
 
   if (loading) return <div className="loading">Loading...</div>;
 
-  // Ownership filter (search is done server-side)
-  const filteredSessions = sessions.filter(s => {
-    if (showOwnedOnly && user && s.created_by !== user.id) return false;
-    return true;
-  });
+  // All sessions are already filtered to user's own sessions server-side
+  const filteredSessions = sessions;
 
   const sortedSessions = [...filteredSessions].sort((a, b) => {
     switch (sortBy) {
@@ -140,12 +129,6 @@ export function SessionListPage() {
           onChange={e => setFile(e.target.files?.[0] || null)}
           required
         />
-        <input
-          type="text"
-          placeholder="Google Doc URL (optional — restricts access to doc viewers)"
-          value={googleDocUrl}
-          onChange={e => setGoogleDocUrl(e.target.value)}
-        />
         <button className="btn btn-primary" type="submit" disabled={uploading}>
           {uploading ? 'Uploading...' : 'Create Session'}
         </button>
@@ -161,14 +144,6 @@ export function SessionListPage() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
-            <label className="filter-checkbox">
-              <input
-                type="checkbox"
-                checked={showOwnedOnly}
-                onChange={e => setShowOwnedOnly(e.target.checked)}
-              />
-              Owned by me
-            </label>
             <select
               className="sort-select"
               value={sortBy}
@@ -186,7 +161,7 @@ export function SessionListPage() {
               <Link
                 key={s.id}
                 to={`/review/${s.id}`}
-                className={`session-card${s.id === newSessionId ? ' session-new' : ''}`}
+                className="session-card"
               >
                 <div className="session-info">
                   <div className="title">{s.title}</div>

@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { requireAuth } from '../auth/middleware.js';
 import { db } from '../db.js';
+import { getIO } from '../socket/index.js';
 
 const router = Router();
 
@@ -82,6 +84,69 @@ router.get('/:sessionId/comments', requireAuth, (req, res) => {
   });
 
   res.json(comments);
+});
+
+// Create test comments from a fake user (for testing)
+router.post('/:sessionId/test-comments', requireAuth, (req, res) => {
+  const { sessionId } = req.params;
+  const { quotes } = req.body as { quotes: string[] };
+
+  // Ensure test user exists
+  const testUser = db.prepare(
+    `INSERT OR IGNORE INTO users (id, google_id, email, display_name, avatar_url)
+     VALUES (-999, 'test-user', 'test@example.com', 'Test User', NULL)`
+  ).run();
+
+  const testUserData = {
+    id: -999,
+    display_name: 'Test User',
+    email: 'test@example.com',
+    avatar_url: null,
+  };
+
+  const testCommentBodies = [
+    'This is a great point, I think we should expand on it.',
+    'I have some concerns about this section.',
+    'Can we get more data to support this claim?',
+    'Love this! Very well written.',
+    'This needs to be reviewed by legal before we proceed.',
+    'Consider rephrasing for clarity.',
+  ];
+
+  const insertStmt = db.prepare(
+    `INSERT INTO comments (id, session_id, user_id, body, anchor_css_selector, anchor_start_offset, anchor_end_offset, anchor_quote)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+
+  const io = getIO();
+  const createdComments = [];
+
+  for (let i = 0; i < Math.min(testCommentBodies.length, quotes?.length || 6); i++) {
+    const id = randomUUID();
+    const body = testCommentBodies[i];
+    const quote = quotes?.[i] || `Test selection ${i + 1}`;
+
+    insertStmt.run(id, sessionId, -999, body, '', 0, 0, quote);
+
+    const comment = {
+      id,
+      session_id: sessionId,
+      parent_id: null,
+      user_id: -999,
+      body,
+      anchor: { css_selector: '', start_offset: 0, end_offset: 0, quote },
+      resolved: false,
+      created_at: new Date().toISOString(),
+      edited_at: null,
+      user: testUserData,
+      reactions: [],
+    };
+
+    createdComments.push(comment);
+    io.to(`session:${sessionId}`).emit('comment:new', comment);
+  }
+
+  res.json(createdComments);
 });
 
 export default router;

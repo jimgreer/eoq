@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import type { TextAnchor } from 'shared';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
@@ -19,14 +19,16 @@ interface SessionData {
 
 export function ReviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const location = useLocation();
   const { user } = useAuth();
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [accessDenied, setAccessDenied] = useState<{ needsDriveAuth: boolean } | null>(null);
-  const { threads, addComment, resolveComment, editComment, deleteComment, toggleReaction } = useComments(sessionId, user?.id);
+  const [accessDenied, setAccessDenied] = useState<{ googleDocId?: string; error?: string } | null>(null);
+  const { threads, addComment, resolveComment, editComment, deleteComment, toggleReaction, addTestCommentsFromOther } = useComments(sessionId, user?.id, session?.html_content);
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'doc' | 'comments'>('doc');
+  const isNewSession = (location.state as any)?.newSession;
   const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Selection state
@@ -41,12 +43,24 @@ export function ReviewPage() {
       .then(res => setSession(res.data))
       .catch(err => {
         if (err.response?.status === 403) {
-          setAccessDenied({ needsDriveAuth: err.response.data.needsDriveAuth });
+          setAccessDenied({
+            googleDocId: err.response.data.google_doc_id,
+            error: err.response.data.error,
+          });
         }
         setSession(null);
       })
       .finally(() => setLoading(false));
   }, [sessionId]);
+
+  // Show share dialog automatically for newly created sessions
+  useEffect(() => {
+    if (isNewSession && session && !loading) {
+      setShowShareDialog(true);
+      // Clear the state so refreshing doesn't show it again
+      window.history.replaceState({}, document.title);
+    }
+  }, [isNewSession, session, loading]);
 
   const handleSelectText = useCallback((anchor: TextAnchor, rect: DOMRect) => {
     setPendingAnchor(anchor);
@@ -107,20 +121,6 @@ export function ReviewPage() {
     }, 50);
   }, []);
 
-  // Dev helper: add test comments
-  const handleAddTestComments = useCallback(async () => {
-    const testComments = [
-      'This is a great point, I think we should expand on it.',
-      'I have some concerns about this section.',
-      'Can we get more data to support this claim?',
-      'Love this! Very well written.',
-      'This needs to be reviewed by legal before we proceed.',
-      'Consider rephrasing for clarity.',
-    ];
-    for (const body of testComments) {
-      await addComment({ body, anchor: { quote: 'Test selection', start: 0, end: 10 } });
-    }
-  }, [addComment]);
 
   // Clear popover on click outside
   useEffect(() => {
@@ -139,23 +139,23 @@ export function ReviewPage() {
 
   if (loading) return <div className="loading">Loading...</div>;
   if (accessDenied) {
-    const returnUrl = `/review/${sessionId}`;
     return (
       <div className="access-denied">
         <h2>Access Restricted</h2>
-        <p>This session is linked to a Google Doc that you don't have access to.</p>
-        {accessDenied.needsDriveAuth ? (
-          <>
-            <p>To check your permissions, grant Drive access:</p>
+        {accessDenied.googleDocId ? (
+          <p>
+            You don't have access to{' '}
             <a
-              className="btn btn-primary"
-              href={`/auth/google/drive?returnUrl=${encodeURIComponent(returnUrl)}`}
+              href={`https://docs.google.com/document/d/${accessDenied.googleDocId}`}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              Grant Drive Access
+              the linked Google Doc
             </a>
-          </>
+            . Request access from the owner, then refresh this page.
+          </p>
         ) : (
-          <p>Ask the document owner to share it with you, then try again.</p>
+          <p>{accessDenied.error || 'This session is restricted to the owner.'}</p>
         )}
       </div>
     );
@@ -212,7 +212,7 @@ export function ReviewPage() {
           onDelete={deleteComment}
           onReact={toggleReaction}
           onQuoteClick={handleQuoteClick}
-          onAddTestComments={handleAddTestComments}
+          onAddTestComments={() => addTestCommentsFromOther(session.html_content)}
           className={mobileTab !== 'comments' ? 'mobile-hidden' : ''}
         />
       </div>

@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { config } from '../config.js';
 
+// Only cache positive results (access granted) to allow live permission updates
 const CACHE_MINUTES = 5;
 
 /**
@@ -23,7 +24,7 @@ export function extractGoogleDocId(input: string): string | null {
 }
 
 /**
- * Refresh the user's access token using their refresh token.
+ * Refresh a user's access token using their refresh token.
  */
 async function refreshAccessToken(userId: number): Promise<string> {
   const user = db.prepare('SELECT refresh_token FROM users WHERE id = ?').get(userId) as any;
@@ -53,67 +54,96 @@ async function refreshAccessToken(userId: number): Promise<string> {
 }
 
 /**
- * Check if a user has access to a Google Doc via the Drive API.
- * Results are cached for CACHE_MINUTES.
+ * Get an access token for a user, refreshing if needed.
  */
-export async function checkDriveAccess(userId: number, googleDocId: string): Promise<{ hasAccess: boolean; needsDriveAuth: boolean }> {
-  // Check if user has a refresh token at all
+async function getAccessToken(userId: number): Promise<string | null> {
   const user = db.prepare('SELECT access_token, refresh_token FROM users WHERE id = ?').get(userId) as any;
   if (!user?.refresh_token) {
-    return { hasAccess: false, needsDriveAuth: true };
+    return null;
   }
 
-  // Check cache
-  const cached = db.prepare(
-    `SELECT has_access FROM drive_permission_cache
-     WHERE user_id = ? AND google_doc_id = ?
-     AND checked_at > datetime('now', '-${CACHE_MINUTES} minutes')`
-  ).get(userId, googleDocId) as any;
-
-  if (cached) {
-    return { hasAccess: !!cached.has_access, needsDriveAuth: false };
+  // Try to refresh to get a fresh token
+  try {
+    return await refreshAccessToken(userId);
+  } catch {
+    return user.access_token || null;
   }
-
-  // Try with current access token
-  let accessToken = user.access_token;
-  let hasAccess = await tryDriveCheck(accessToken, googleDocId);
-
-  // If unauthorized, refresh and retry once
-  if (hasAccess === null) {
-    try {
-      accessToken = await refreshAccessToken(userId);
-      hasAccess = await tryDriveCheck(accessToken, googleDocId);
-    } catch {
-      return { hasAccess: false, needsDriveAuth: true };
-    }
-  }
-
-  const result = hasAccess === true;
-
-  // Cache the result
-  db.prepare(
-    `INSERT OR REPLACE INTO drive_permission_cache (user_id, google_doc_id, has_access, checked_at)
-     VALUES (?, ?, ?, datetime('now'))`
-  ).run(userId, googleDocId, result ? 1 : 0);
-
-  return { hasAccess: result, needsDriveAuth: false };
 }
 
 /**
- * Try a Drive API check. Returns:
- * - true: user has access
- * - false: user does not have access
- * - null: token expired, needs refresh
+ * Check if a user has access to a Google Doc by checking the doc's permission list.
+ * Uses the session creator's credentials to fetch the permission list.
  */
-async function tryDriveCheck(accessToken: string | null, googleDocId: string): Promise<boolean | null> {
-  if (!accessToken) return null;
+export async function checkDriveAccess(
+  creatorId: number,
+  readerEmail: string,
+  googleDocId: string
+): Promise<{ hasAccess: boolean; creatorNeedsDriveAuth: boolean }> {
+  // Check cache - only use cached positive results to allow live permission updates
+  const cached = db.prepare(
+    `SELECT has_access FROM drive_permission_cache
+     WHERE user_email = ? AND google_doc_id = ?
+     AND has_access = 1
+     AND checked_at > datetime('now', '-${CACHE_MINUTES} minutes')`
+  ).get(readerEmail.toLowerCase(), googleDocId) as any;
 
+  if (cached) {
+    return { hasAccess: true, creatorNeedsDriveAuth: false };
+  }
+
+  // Get the creator's access token
+  const accessToken = await getAccessToken(creatorId);
+  if (!accessToken) {
+    return { hasAccess: false, creatorNeedsDriveAuth: true };
+  }
+
+  // Fetch the doc's permission list using the creator's token
+  const hasAccess = await checkPermissionList(accessToken, googleDocId, readerEmail);
+
+  // Cache the result (only positive results will be used)
+  db.prepare(
+    `INSERT OR REPLACE INTO drive_permission_cache (user_email, google_doc_id, has_access, checked_at)
+     VALUES (?, ?, ?, datetime('now'))`
+  ).run(readerEmail.toLowerCase(), googleDocId, hasAccess ? 1 : 0);
+
+  return { hasAccess, creatorNeedsDriveAuth: false };
+}
+
+/**
+ * Check if an email has access to a doc by fetching its permission list.
+ */
+async function checkPermissionList(
+  accessToken: string,
+  googleDocId: string,
+  readerEmail: string
+): Promise<boolean> {
+  const normalizedEmail = readerEmail.toLowerCase();
+
+  // Fetch permissions list
   const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${googleDocId}?fields=id`,
+    `https://www.googleapis.com/drive/v3/files/${googleDocId}/permissions?fields=permissions(emailAddress,type)`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
-  if (res.ok) return true;
-  if (res.status === 401) return null; // Token expired
-  return false; // 403, 404, etc.
+  if (!res.ok) {
+    // If we can't fetch permissions, deny access
+    return false;
+  }
+
+  const data = await res.json() as any;
+  const permissions = data.permissions || [];
+
+  // Check if user's email is in the permission list, or if doc is shared with "anyone"
+  for (const perm of permissions) {
+    // "anyone" type means the doc is publicly accessible
+    if (perm.type === 'anyone') {
+      return true;
+    }
+    // Check email match
+    if (perm.emailAddress && perm.emailAddress.toLowerCase() === normalizedEmail) {
+      return true;
+    }
+  }
+
+  return false;
 }

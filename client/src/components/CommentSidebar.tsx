@@ -89,25 +89,25 @@ export function CommentSidebar({
 
   const useCompactMode = threads.length > COMPACT_THRESHOLD;
 
-  const toggleExpanded = useCallback((threadId: string) => {
-    // If manually expanding, remove from collapsed and add to expanded
-    if (manuallyCollapsed.has(threadId) || !manuallyExpanded.has(threadId)) {
-      setManuallyCollapsed(prev => {
-        const next = new Set(prev);
-        next.delete(threadId);
-        return next;
-      });
-      setManuallyExpanded(prev => new Set(prev).add(threadId));
-    } else {
-      // If manually collapsing, remove from expanded and add to collapsed
+  const toggleExpanded = useCallback((threadId: string, currentlyExpanded: boolean) => {
+    if (currentlyExpanded) {
+      // Collapse: remove from expanded, add to collapsed
       setManuallyExpanded(prev => {
         const next = new Set(prev);
         next.delete(threadId);
         return next;
       });
       setManuallyCollapsed(prev => new Set(prev).add(threadId));
+    } else {
+      // Expand: remove from collapsed, add to expanded
+      setManuallyCollapsed(prev => {
+        const next = new Set(prev);
+        next.delete(threadId);
+        return next;
+      });
+      setManuallyExpanded(prev => new Set(prev).add(threadId));
     }
-  }, [manuallyExpanded, manuallyCollapsed]);
+  }, []);
 
   // Determine if a thread should be shown expanded
   const shouldShowExpanded = useCallback((thread: Thread): boolean => {
@@ -168,7 +168,7 @@ export function CommentSidebar({
               thread={thread}
               isActive={thread.id === activeThreadId}
               onClick={() => {
-                toggleExpanded(thread.id);
+                toggleExpanded(thread.id, false);
                 onThreadClick(thread.id);
               }}
             />
@@ -185,7 +185,7 @@ export function CommentSidebar({
               onDelete={onDelete}
               onReact={onReact}
               onQuoteClick={onQuoteClick ? () => onQuoteClick(thread.id) : undefined}
-              onCollapse={useCompactMode ? () => toggleExpanded(thread.id) : undefined}
+              onCollapse={() => toggleExpanded(thread.id, isExpanded)}
             />
           );
         })}
@@ -285,14 +285,16 @@ function CommentThread({
       )}
       {thread.anchor?.quote && (
         <div
-          className="comment-quote"
+          className="comment-quote collapsible"
           onClick={e => {
-            if (onQuoteClick) {
-              e.stopPropagation();
-              onQuoteClick();
+            e.stopPropagation();
+            if (onCollapse) {
+              onCollapse();
             }
           }}
+          title="Click to collapse"
         >
+          <span className="collapse-indicator">&#9652;</span>
           "{thread.anchor.quote.length > 100
             ? thread.anchor.quote.slice(0, 100) + '...'
             : thread.anchor.quote}"

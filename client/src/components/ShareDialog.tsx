@@ -1,14 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 
-interface Collaborator {
-  email: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  added_at: string;
-  has_account: boolean;
-}
-
 interface Owner {
   id: number;
   email: string;
@@ -23,26 +15,25 @@ interface Props {
   onClose: () => void;
 }
 
-export function ShareDialog({ sessionId, sessionTitle, currentUserEmail, onClose }: Props) {
+export function ShareDialog({ sessionId, sessionTitle, onClose }: Props) {
   const [loading, setLoading] = useState(true);
-  const [accessLevel, setAccessLevel] = useState<'restricted' | 'organization' | 'link'>('restricted');
-  const [orgDomain, setOrgDomain] = useState<string>('');
   const [owner, setOwner] = useState<Owner | null>(null);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [newEmail, setNewEmail] = useState('');
-  const [addingEmail, setAddingEmail] = useState(false);
+  const [googleDocUrl, setGoogleDocUrl] = useState('');
+  const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsDriveAuth, setNeedsDriveAuth] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const isOwner = owner?.email.toLowerCase() === currentUserEmail.toLowerCase();
+  const [linkedDocId, setLinkedDocId] = useState<string | null>(null);
 
   useEffect(() => {
     api.get(`/sessions/${sessionId}/collaborators`)
       .then(res => {
-        setAccessLevel(res.data.access_level);
-        setOrgDomain(res.data.org_domain || '');
         setOwner(res.data.owner);
-        setCollaborators(res.data.collaborators);
+        setLinkedDocId(res.data.google_doc_id || null);
+        // If creator hasn't granted Drive access yet, show the prompt
+        if (!res.data.hasDriveToken) {
+          setNeedsDriveAuth(true);
+        }
       })
       .catch(err => {
         setError(err.response?.data?.error || 'Failed to load sharing settings');
@@ -50,39 +41,37 @@ export function ShareDialog({ sessionId, sessionTitle, currentUserEmail, onClose
       .finally(() => setLoading(false));
   }, [sessionId]);
 
-  const handleAddCollaborator = async (e: React.FormEvent) => {
+  const handleLinkDoc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmail.trim()) return;
+    if (!googleDocUrl.trim()) return;
 
-    setAddingEmail(true);
+    setLinking(true);
     setError(null);
+    setNeedsDriveAuth(false);
 
     try {
-      const res = await api.post(`/sessions/${sessionId}/collaborators`, { email: newEmail.trim() });
-      setCollaborators(prev => [...prev, res.data]);
-      setNewEmail('');
+      const res = await api.post(`/sessions/${sessionId}/google-doc`, { google_doc_url: googleDocUrl.trim() });
+      setLinkedDocId(res.data.google_doc_id);
+      setGoogleDocUrl('');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to add collaborator');
+      if (err.response?.data?.needsDriveAuth) {
+        setNeedsDriveAuth(true);
+        setError(null); // Clear error so we show the Drive auth prompt
+      } else {
+        setError(err.response?.data?.error || 'Failed to link Google Doc');
+      }
     } finally {
-      setAddingEmail(false);
+      setLinking(false);
     }
   };
 
-  const handleRemoveCollaborator = async (email: string) => {
+  const handleUnlinkDoc = async () => {
+    setError(null);
     try {
-      await api.delete(`/sessions/${sessionId}/collaborators/${encodeURIComponent(email)}`);
-      setCollaborators(prev => prev.filter(c => c.email !== email));
+      await api.delete(`/sessions/${sessionId}/google-doc`);
+      setLinkedDocId(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to remove collaborator');
-    }
-  };
-
-  const handleAccessLevelChange = async (level: 'restricted' | 'organization' | 'link') => {
-    try {
-      await api.patch(`/sessions/${sessionId}/access`, { access_level: level });
-      setAccessLevel(level);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update access level');
+      setError(err.response?.data?.error || 'Failed to unlink Google Doc');
     }
   };
 
@@ -105,127 +94,76 @@ export function ShareDialog({ sessionId, sessionTitle, currentUserEmail, onClose
           <div className="share-dialog-loading">Loading...</div>
         ) : (
           <>
-            <form className="share-add-form" onSubmit={handleAddCollaborator}>
-              <input
-                type="email"
-                placeholder="Add people by email"
-                value={newEmail}
-                onChange={e => setNewEmail(e.target.value)}
-                disabled={addingEmail}
-              />
-              <button type="submit" className="btn btn-primary" disabled={addingEmail || !newEmail.trim()}>
-                {addingEmail ? 'Adding...' : 'Add'}
-              </button>
-            </form>
+            {error && !needsDriveAuth && <div className="share-error">{error}</div>}
 
-            {error && <div className="share-error">{error}</div>}
+            {needsDriveAuth && (
+              <div className="share-drive-auth">
+                <p>To link a Google Doc, you need to grant Drive access so we can verify permissions.</p>
+                <a
+                  href={`/auth/google/drive?returnUrl=${encodeURIComponent(`/review/${sessionId}`)}`}
+                  className="btn btn-primary"
+                  style={{ display: 'inline-block', marginTop: '8px' }}
+                >
+                  Grant Drive Access
+                </a>
+              </div>
+            )}
 
             <div className="share-section">
-              <h3>People with access</h3>
-              <div className="share-people-list">
-                {owner && (
-                  <div className="share-person">
-                    <div className="share-person-avatar">
-                      {owner.avatar_url ? (
-                        <img src={owner.avatar_url} alt="" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="avatar-placeholder">{owner.display_name[0]}</span>
-                      )}
-                    </div>
-                    <div className="share-person-info">
-                      <div className="share-person-name">
-                        {owner.display_name}
-                        {owner.email.toLowerCase() === currentUserEmail.toLowerCase() && ' (you)'}
-                      </div>
-                      <div className="share-person-email">{owner.email}</div>
-                    </div>
-                    <div className="share-person-role">Owner</div>
-                  </div>
-                )}
+              <h3>Access</h3>
 
-                {collaborators.map(collab => (
-                  <div key={collab.email} className="share-person">
-                    <div className="share-person-avatar">
-                      {collab.avatar_url ? (
-                        <img src={collab.avatar_url} alt="" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="avatar-placeholder">
-                          {collab.display_name?.[0] || collab.email[0].toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="share-person-info">
-                      <div className="share-person-name">
-                        {collab.display_name || collab.email}
-                        {collab.email.toLowerCase() === currentUserEmail.toLowerCase() && ' (you)'}
-                        {!collab.has_account && <span className="pending-badge">Pending</span>}
-                      </div>
-                      {collab.display_name && (
-                        <div className="share-person-email">{collab.email}</div>
-                      )}
-                    </div>
-                    {(isOwner || collab.email.toLowerCase() === currentUserEmail.toLowerCase()) && (
-                      <button
-                        className="btn-icon btn-remove"
-                        title="Remove"
-                        onClick={() => handleRemoveCollaborator(collab.email)}
+              {linkedDocId ? (
+                <div className="share-access-status">
+                  <div className="share-access-icon">&#128196;</div>
+                  <div className="share-access-info">
+                    <div className="share-access-title">Linked to Google Doc</div>
+                    <div className="share-access-desc">
+                      Anyone with access to{' '}
+                      <a
+                        href={`https://docs.google.com/document/d/${linkedDocId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
-                        &times;
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="share-section">
-              <h3>General access</h3>
-              <div className="share-access-options">
-                <label className={`share-access-option${accessLevel === 'restricted' ? ' selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="access"
-                    checked={accessLevel === 'restricted'}
-                    onChange={() => handleAccessLevelChange('restricted')}
-                    disabled={!isOwner}
-                  />
-                  <div className="share-access-icon">&#128274;</div>
-                  <div className="share-access-info">
-                    <div className="share-access-title">Restricted</div>
-                    <div className="share-access-desc">Only people with access can open</div>
-                  </div>
-                </label>
-                {orgDomain && (
-                  <label className={`share-access-option${accessLevel === 'organization' ? ' selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="access"
-                      checked={accessLevel === 'organization'}
-                      onChange={() => handleAccessLevelChange('organization')}
-                      disabled={!isOwner}
-                    />
-                    <div className="share-access-icon">&#127970;</div>
-                    <div className="share-access-info">
-                      <div className="share-access-title">Anyone at {orgDomain}</div>
-                      <div className="share-access-desc">Anyone in the organization can access</div>
+                        the source document
+                      </a>
+                      {' '}can view this session
                     </div>
-                  </label>
-                )}
-                <label className={`share-access-option${accessLevel === 'link' ? ' selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="access"
-                    checked={accessLevel === 'link'}
-                    onChange={() => handleAccessLevelChange('link')}
-                    disabled={!isOwner}
-                  />
-                  <div className="share-access-icon">&#128279;</div>
-                  <div className="share-access-info">
-                    <div className="share-access-title">Anyone with the link</div>
-                    <div className="share-access-desc">Anyone who has the link can access</div>
                   </div>
-                </label>
-              </div>
+                  <button
+                    className="btn btn-text btn-sm"
+                    onClick={handleUnlinkDoc}
+                  >
+                    Unlink
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="share-access-status restricted">
+                    <div className="share-access-icon">&#128274;</div>
+                    <div className="share-access-info">
+                      <div className="share-access-title">Restricted</div>
+                      <div className="share-access-desc">
+                        Only {owner?.display_name || 'the owner'} can access. Link a Google Doc to share with others.
+                      </div>
+                    </div>
+                  </div>
+
+                  {!needsDriveAuth && (
+                    <form className="share-link-form" onSubmit={handleLinkDoc}>
+                      <input
+                        type="text"
+                        placeholder="Paste a Google Doc URL to control access"
+                        value={googleDocUrl}
+                        onChange={e => setGoogleDocUrl(e.target.value)}
+                        disabled={linking}
+                      />
+                      <button type="submit" className="btn btn-primary" disabled={linking || !googleDocUrl.trim()}>
+                        {linking ? 'Linking...' : 'Link'}
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="share-dialog-footer">

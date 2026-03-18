@@ -490,6 +490,24 @@ body {
   cursor: pointer;
 }
 
+.comment-quote.collapsible {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.comment-quote.collapsible:hover {
+  background: #fdf0c8;
+}
+
+.comment-quote .collapse-indicator {
+  color: #80868b;
+  font-style: normal;
+  flex-shrink: 0;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
 .comment-entry {
   padding: 10px 12px;
   position: relative;
@@ -889,6 +907,71 @@ body {
   color: #c5221f;
   font-size: 13px;
   background: #fce8e6;
+}
+
+.share-drive-auth {
+  padding: 16px 20px;
+  background: #fff8e1;
+  border-bottom: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.share-drive-auth p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #5f6368;
+}
+
+.share-access-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #e8f0fe;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.share-access-status.restricted {
+  background: #f1f3f4;
+}
+
+.share-access-status .share-access-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.share-access-status .share-access-info {
+  flex: 1;
+}
+
+.share-access-status .share-access-title {
+  font-weight: 500;
+  color: #202124;
+}
+
+.share-access-status .share-access-desc {
+  font-size: 12px;
+  color: #5f6368;
+  margin-top: 2px;
+}
+
+.share-link-form {
+  display: flex;
+  gap: 8px;
+}
+
+.share-link-form input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.share-link-form input:focus {
+  outline: none;
+  border-color: #1a73e8;
 }
 
 .share-section {

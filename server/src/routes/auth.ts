@@ -16,20 +16,23 @@ router.get(
 router.get(
   '/google/drive',
   (req, res, next) => {
-    // Store the return URL so we can redirect back after granting
-    (req.session as any).driveReturnUrl = req.query.returnUrl || '/';
-    next();
-  },
-  passport.authenticate('google', {
-    scope: [
-      'profile',
-      'email',
-      'https://www.googleapis.com/auth/drive.metadata.readonly',
-    ],
-    accessType: 'offline',
-    prompt: 'consent',
-    hd: config.google.allowedDomain || undefined,
-  } as any)
+    // Store the return URL in session AND pass via state parameter for reliability
+    const returnUrl = (req.query.returnUrl as string) || '/';
+    (req.session as any).driveReturnUrl = returnUrl;
+    // Encode return URL in state parameter (base64)
+    const state = Buffer.from(JSON.stringify({ returnUrl })).toString('base64');
+    passport.authenticate('google', {
+      scope: [
+        'profile',
+        'email',
+        'https://www.googleapis.com/auth/drive.metadata.readonly',
+      ],
+      accessType: 'offline',
+      prompt: 'consent',
+      hd: config.google.allowedDomain || undefined,
+      state,
+    } as any)(req, res, next);
+  }
 );
 
 router.get(
@@ -38,13 +41,22 @@ router.get(
     failureRedirect: `${config.clientUrl}/login?error=auth_failed`,
   }),
   (req, res) => {
-    const returnUrl = (req.session as any).driveReturnUrl;
-    if (returnUrl) {
-      delete (req.session as any).driveReturnUrl;
-      res.redirect(`${config.clientUrl}${returnUrl}`);
+    // Try to get return URL from state parameter first, then session
+    let returnUrl = '/';
+    const state = req.query.state as string;
+    if (state) {
+      try {
+        const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
+        returnUrl = decoded.returnUrl || '/';
+      } catch {
+        // Fall back to session
+        returnUrl = (req.session as any).driveReturnUrl || '/';
+      }
     } else {
-      res.redirect(config.clientUrl);
+      returnUrl = (req.session as any).driveReturnUrl || '/';
     }
+    delete (req.session as any).driveReturnUrl;
+    res.redirect(`${config.clientUrl}${returnUrl}`);
   }
 );
 

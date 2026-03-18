@@ -12,7 +12,7 @@ router.get('/:sessionId/collaborators', requireAuth, (req, res) => {
 
   // Check if user has access to manage this session
   const session = db.prepare(
-    'SELECT created_by, access_level FROM review_sessions WHERE id = ?'
+    'SELECT created_by, access_level, google_doc_id FROM review_sessions WHERE id = ?'
   ).get(sessionId) as any;
 
   if (!session) {
@@ -29,9 +29,9 @@ router.get('/:sessionId/collaborators', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Not authorized' });
   }
 
-  // Get creator info
+  // Get creator info (including whether they have Drive token)
   const creator = db.prepare(
-    'SELECT id, email, display_name, avatar_url FROM users WHERE id = ?'
+    'SELECT id, email, display_name, avatar_url, refresh_token FROM users WHERE id = ?'
   ).get(session.created_by) as any;
 
   // Get collaborators
@@ -46,6 +46,8 @@ router.get('/:sessionId/collaborators', requireAuth, (req, res) => {
   res.json({
     access_level: session.access_level || 'restricted',
     org_domain: ORG_DOMAIN,
+    google_doc_id: session.google_doc_id || null,
+    hasDriveToken: !!creator.refresh_token,
     owner: {
       id: creator.id,
       email: creator.email,

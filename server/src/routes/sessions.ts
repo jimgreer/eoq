@@ -70,29 +70,23 @@ function extractBody(html: string): string {
   return styleTag + body;
 }
 
-// List sessions (only those user has access to)
+// List sessions (only those user created)
 router.get('/', requireAuth, (req, res) => {
   const user = req.user as any;
   const searchQuery = req.query.q as string | undefined;
-  const userDomain = getEmailDomain(user.email);
-  const isOrgMember = userDomain === ORG_DOMAIN;
 
   let sql = `
     SELECT
       rs.id, rs.title, rs.is_active, rs.created_at, rs.created_by, rs.google_doc_id,
-      rs.access_level,
       u.display_name AS creator_name,
       (SELECT COUNT(*) FROM comments c WHERE c.session_id = rs.id) AS comment_count,
       (SELECT MAX(c.created_at) FROM comments c WHERE c.session_id = rs.id) AS last_activity
     FROM review_sessions rs
     LEFT JOIN users u ON rs.created_by = u.id
-    WHERE (rs.created_by = ?
-       OR rs.access_level = 'link'
-       OR (rs.access_level = 'organization' AND ?)
-       OR EXISTS (SELECT 1 FROM session_collaborators sc WHERE sc.session_id = rs.id AND sc.email = ?))
+    WHERE rs.created_by = ?
   `;
 
-  const params: any[] = [user.id, isOrgMember ? 1 : 0, user.email];
+  const params: any[] = [user.id];
 
   if (searchQuery && searchQuery.trim()) {
     sql += ` AND (rs.title LIKE ? OR rs.search_text LIKE ? OR u.display_name LIKE ?)`;
@@ -115,45 +109,32 @@ router.get('/:id', requireAuth, async (req, res) => {
 
   const user = req.user as any;
   const isCreator = session.created_by === user.id;
-  const accessLevel = session.access_level || 'restricted';
-  const userDomain = getEmailDomain(user.email);
-  const isOrgMember = userDomain === ORG_DOMAIN;
 
   // Check access permissions
-  // 'link' = anyone, 'organization' = org members, 'restricted' = explicit collaborators only
+  // If creator → allow
+  // If linked to Google Doc → check Drive permissions using creator's token
+  // Otherwise → restricted to owner only
   if (!isCreator) {
-    if (accessLevel === 'link') {
-      // Anyone with the link can access
-    } else if (accessLevel === 'organization') {
-      // Only organization members can access
-      if (!isOrgMember) {
+    if (session.google_doc_id) {
+      // Check if user's email is in the doc's permission list (using creator's Drive token)
+      const { hasAccess, creatorNeedsDriveAuth } = await checkDriveAccess(
+        session.created_by,
+        user.email,
+        session.google_doc_id
+      );
+      if (!hasAccess) {
         return res.status(403).json({
-          error: 'This session is only accessible to organization members',
+          error: creatorNeedsDriveAuth
+            ? 'The session owner needs to re-authenticate with Google Drive'
+            : 'You do not have access to the linked Google Doc',
+          google_doc_id: session.google_doc_id,
         });
       }
     } else {
-      // accessLevel === 'restricted' - check explicit collaborators
-      const isCollaborator = db.prepare(
-        'SELECT 1 FROM session_collaborators WHERE session_id = ? AND email = ?'
-      ).get(req.params.id, user.email);
-
-      if (!isCollaborator) {
-        // If session is linked to a Google Doc, check Drive permissions as fallback
-        if (session.google_doc_id) {
-          const { hasAccess, needsDriveAuth } = await checkDriveAccess(user.id, session.google_doc_id);
-          if (!hasAccess) {
-            return res.status(403).json({
-              error: 'You do not have access to this session',
-              needsDriveAuth,
-              google_doc_id: session.google_doc_id,
-            });
-          }
-        } else {
-          return res.status(403).json({
-            error: 'You do not have access to this session',
-          });
-        }
-      }
+      // No linked doc = restricted to owner only
+      return res.status(403).json({
+        error: 'This session is restricted to the owner',
+      });
     }
   }
 
@@ -311,6 +292,61 @@ router.delete('/:id', requireAuth, (req, res) => {
   }
 
   db.prepare('DELETE FROM review_sessions WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Link a Google Doc to a session (for access control)
+router.post('/:id/google-doc', requireAuth, (req, res) => {
+  const user = req.user as any;
+  const { google_doc_url } = req.body;
+
+  const session = db.prepare('SELECT created_by, google_doc_id FROM review_sessions WHERE id = ?').get(req.params.id) as any;
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  if (session.created_by !== user.id) {
+    return res.status(403).json({ error: 'Only the session creator can link a Google Doc' });
+  }
+
+  // Check if creator has Drive token (needed to check doc permissions)
+  const userWithToken = db.prepare('SELECT refresh_token FROM users WHERE id = ?').get(user.id) as any;
+  if (!userWithToken?.refresh_token) {
+    return res.status(403).json({
+      error: 'Drive access required',
+      needsDriveAuth: true,
+    });
+  }
+
+  if (!google_doc_url) {
+    return res.status(400).json({ error: 'Google Doc URL is required' });
+  }
+
+  const googleDocId = extractGoogleDocId(google_doc_url);
+  if (!googleDocId) {
+    return res.status(400).json({ error: 'Invalid Google Doc URL' });
+  }
+
+  db.prepare('UPDATE review_sessions SET google_doc_id = ? WHERE id = ?').run(googleDocId, req.params.id);
+
+  res.json({ ok: true, google_doc_id: googleDocId });
+});
+
+// Unlink a Google Doc from a session
+router.delete('/:id/google-doc', requireAuth, (req, res) => {
+  const user = req.user as any;
+
+  const session = db.prepare('SELECT created_by FROM review_sessions WHERE id = ?').get(req.params.id) as any;
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  if (session.created_by !== user.id) {
+    return res.status(403).json({ error: 'Only the session creator can unlink a Google Doc' });
+  }
+
+  db.prepare('UPDATE review_sessions SET google_doc_id = NULL WHERE id = ?').run(req.params.id);
+
   res.json({ ok: true });
 });
 

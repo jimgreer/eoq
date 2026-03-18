@@ -4,6 +4,15 @@ import type { RequestHandler } from 'express';
 import { db } from '../db.js';
 import { setupCommentHandlers } from './comments.js';
 
+let ioInstance: Server | null = null;
+
+export function getIO(): Server {
+  if (!ioInstance) {
+    throw new Error('Socket.io not initialized');
+  }
+  return ioInstance;
+}
+
 export function createSocketServer(httpServer: HttpServer, sessionMiddleware: RequestHandler) {
   const io = new Server(httpServer, {
     cors: {
@@ -37,5 +46,6 @@ export function createSocketServer(httpServer: HttpServer, sessionMiddleware: Re
     setupCommentHandlers(io, socket);
   });
 
+  ioInstance = io;
   return io;
 }
