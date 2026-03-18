@@ -392,19 +392,51 @@ body {
   user-select: text;
 }
 
+.resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: #dadce0;
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 40px;
+  background: #dadce0;
+  border-radius: 1px;
+}
+
+.resize-handle:hover::after,
+.resize-handle:active::after {
+  background: #1a73e8;
+}
+
 .comment-sidebar {
-  width: 360px;
+  width: 450px;
   border-left: 1px solid #dadce0;
   overflow-y: auto;
   background: #f8f9fa;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .sidebar-header {
   display: flex;
   align-items: center;
-  padding: 16px;
+  gap: 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid #dadce0;
   font-weight: 500;
   font-size: 14px;
@@ -413,9 +445,25 @@ body {
   top: 0;
 }
 
+.show-resolved-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+  font-size: 12px;
+  color: #5f6368;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.show-resolved-toggle input {
+  cursor: pointer;
+}
+
 .comment-list {
   flex: 1;
   padding: 12px;
+  padding-right: 48px; /* Space for floating thread actions */
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -423,11 +471,42 @@ body {
 
 /* Comment thread */
 .comment-thread {
+  position: relative;
   background: #fff;
   border: 1px solid #dadce0;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   transition: border-color 0.2s;
+}
+
+/* Thread action icons - floating to the right of the card */
+.thread-actions {
+  position: absolute;
+  top: 4px;
+  right: -40px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+
+.comment-thread:hover .thread-actions {
+  opacity: 1;
+}
+
+/* Collapse button - bottom right of card */
+.collapse-btn {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.comment-thread:hover .collapse-btn {
+  opacity: 1;
 }
 
 .comment-thread.active {
@@ -568,11 +647,31 @@ body {
   border-top: 1px solid #f1f3f4;
 }
 
+.comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
 .comment-author {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
+}
+
+/* Entry action icons - visible on hover */
+.entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  position: relative;
+}
+
+.comment-entry:hover .entry-actions {
+  opacity: 1;
 }
 
 .comment-author img {
@@ -597,26 +696,16 @@ body {
   font-style: italic;
 }
 
-.comment-modify-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.comment-entry:hover .comment-modify-actions {
-  opacity: 1;
-}
-
 .btn-icon {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 14px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 6px;
+  border-radius: 50%;
   color: #5f6368;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-icon:hover {
@@ -627,6 +716,10 @@ body {
 .btn-icon.btn-delete:hover {
   background: #fce8e6;
   color: #c5221f;
+}
+
+.btn-icon svg {
+  display: block;
 }
 
 .edit-form {
@@ -687,27 +780,10 @@ body {
   color: #1a73e8;
 }
 
-.add-reaction-wrapper {
-  position: absolute;
-  right: 8px;
-  bottom: 4px;
-}
-
-.add-reaction {
-  font-size: 14px;
-  color: #9aa0a6;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.comment-entry:hover .add-reaction {
-  opacity: 1;
-}
-
 .emoji-picker {
   position: absolute;
   bottom: 100%;
-  left: 0;
+  right: 0;
   background: #fff;
   border: 1px solid #dadce0;
   border-radius: 8px;
@@ -729,12 +805,6 @@ body {
 
 .emoji-option:hover {
   background: #f1f3f4;
-}
-
-.comment-actions {
-  padding: 4px 12px 8px;
-  display: flex;
-  gap: 8px;
 }
 
 .reply-form {

@@ -15,9 +15,9 @@ interface Props {
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
   onReact: (commentId: string, emoji: string) => Promise<boolean>;
-  onQuoteClick?: (threadId: string) => void;
   onAddTestComments?: () => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 const COMPACT_THRESHOLD = 5; // Switch to compact mode when more than this many threads
@@ -32,10 +32,13 @@ export function CommentSidebar({
   onEdit,
   onDelete,
   onReact,
-  onQuoteClick,
   onAddTestComments,
   className,
+  style,
 }: Props) {
+  // Filter state
+  const [showResolved, setShowResolved] = useState(false);
+
   // Track manually expanded/collapsed threads
   const [manuallyExpanded, setManuallyExpanded] = useState<Set<string>>(new Set());
   const [manuallyCollapsed, setManuallyCollapsed] = useState<Set<string>>(new Set());
@@ -59,16 +62,8 @@ export function CommentSidebar({
   // When a thread becomes active (e.g., clicking highlight), auto-expand it
   const prevActiveThreadId = useRef<string | null>(null);
   useEffect(() => {
-    console.log('[CommentSidebar] useEffect running:', {
-      activeThreadId,
-      prevActiveThreadId: prevActiveThreadId.current,
-      manuallyCollapsed: [...manuallyCollapsed],
-    });
-    // Only clear collapsed state when activeThreadId changes to a NEW thread
     if (activeThreadId && activeThreadId !== prevActiveThreadId.current) {
-      console.log('[CommentSidebar] activeThreadId changed to new value');
       if (manuallyCollapsed.has(activeThreadId)) {
-        console.log('[CommentSidebar] Clearing collapsed state for:', activeThreadId);
         setManuallyCollapsed(prev => {
           const next = new Set(prev);
           next.delete(activeThreadId);
@@ -113,23 +108,14 @@ export function CommentSidebar({
   const useCompactMode = threads.length > COMPACT_THRESHOLD;
 
   const toggleExpanded = useCallback((threadId: string, currentlyExpanded: boolean) => {
-    console.log('[CommentSidebar] toggleExpanded called:', { threadId, currentlyExpanded });
     if (currentlyExpanded) {
-      // Collapse: remove from expanded, add to collapsed
-      console.log('[CommentSidebar] Collapsing thread:', threadId);
       setManuallyExpanded(prev => {
         const next = new Set(prev);
         next.delete(threadId);
         return next;
       });
-      setManuallyCollapsed(prev => {
-        const next = new Set(prev).add(threadId);
-        console.log('[CommentSidebar] manuallyCollapsed now:', [...next]);
-        return next;
-      });
+      setManuallyCollapsed(prev => new Set(prev).add(threadId));
     } else {
-      // Expand: remove from collapsed, add to expanded
-      console.log('[CommentSidebar] Expanding thread:', threadId);
       setManuallyCollapsed(prev => {
         const next = new Set(prev);
         next.delete(threadId);
@@ -141,27 +127,15 @@ export function CommentSidebar({
 
   // Determine if a thread should be shown expanded
   const shouldShowExpanded = useCallback((thread: Thread): boolean => {
-    // Manual expand/collapse always takes precedence (user explicitly clicked)
-    if (manuallyExpanded.has(thread.id)) {
-      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ true (manuallyExpanded)');
-      return true;
-    }
-    if (manuallyCollapsed.has(thread.id)) {
-      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ false (manuallyCollapsed)');
-      return false;
-    }
+    // Manual expand/collapse always takes precedence
+    if (manuallyExpanded.has(thread.id)) return true;
+    if (manuallyCollapsed.has(thread.id)) return false;
 
     // Active thread is expanded by default
-    if (thread.id === activeThreadId) {
-      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ true (activeThread)');
-      return true;
-    }
+    if (thread.id === activeThreadId) return true;
 
     // Your own comments always show expanded
-    if (thread.user_id === currentUserId) {
-      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ true (ownComment)');
-      return true;
-    }
+    if (thread.user_id === currentUserId) return true;
 
     // Resolved threads have their own collapse logic
     if (thread.resolved) return false;
@@ -178,27 +152,39 @@ export function CommentSidebar({
     return true;
   }, [activeThreadId, manuallyExpanded, manuallyCollapsed, currentUserId, useCompactMode, offScreenThreads]);
 
+  // Filter threads based on resolved state
+  const resolvedCount = threads.filter(t => t.resolved).length;
+  const visibleThreads = showResolved ? threads : threads.filter(t => !t.resolved);
+
   return (
-    <div className={`comment-sidebar ${className || ''}`}>
+    <div className={`comment-sidebar ${className || ''}`} style={style}>
       <div className="sidebar-header">
-        Comments ({threads.length})
+        <span>Comments ({threads.length - resolvedCount})</span>
+        <label className="show-resolved-toggle">
+          <input
+            type="checkbox"
+            checked={showResolved}
+            onChange={e => setShowResolved(e.target.checked)}
+          />
+          Show resolved ({resolvedCount})
+        </label>
         {onAddTestComments && (
           <button
             className="btn btn-text btn-sm"
             onClick={onAddTestComments}
-            style={{ marginLeft: 'auto', fontSize: 11 }}
+            style={{ fontSize: 11 }}
           >
             +6 test
           </button>
         )}
       </div>
       <div className="comment-list" ref={listRef}>
-        {threads.length === 0 && (
+        {visibleThreads.length === 0 && (
           <p style={{ padding: 16, color: '#5f6368', fontSize: 14 }}>
             Select text in the document to add a comment.
           </p>
         )}
-        {threads.map(thread => {
+        {visibleThreads.map(thread => {
           const isExpanded = shouldShowExpanded(thread);
           const showCompact = useCompactMode && !isExpanded && !thread.resolved;
 
@@ -224,7 +210,6 @@ export function CommentSidebar({
               onEdit={onEdit}
               onDelete={onDelete}
               onReact={onReact}
-              onQuoteClick={onQuoteClick ? () => onQuoteClick(thread.id) : undefined}
               onCollapse={() => toggleExpanded(thread.id, isExpanded)}
             />
           );
@@ -276,7 +261,6 @@ function CommentThread({
   onEdit,
   onDelete,
   onReact,
-  onQuoteClick,
   onCollapse,
 }: {
   thread: Thread;
@@ -288,7 +272,6 @@ function CommentThread({
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
   onReact: (commentId: string, emoji: string) => Promise<boolean>;
-  onQuoteClick?: () => void;
   onCollapse?: () => void;
 }) {
   const [replyText, setReplyText] = useState('');
@@ -323,23 +306,6 @@ function CommentThread({
           )}
         </div>
       )}
-      {thread.anchor?.quote && (
-        <div
-          className="comment-quote collapsible"
-          onClick={e => {
-            e.stopPropagation();
-            if (onCollapse) {
-              onCollapse();
-            }
-          }}
-          title="Click to collapse"
-        >
-          <span className="collapse-indicator">&#9652;</span>
-          "{thread.anchor.quote.length > 100
-            ? thread.anchor.quote.slice(0, 100) + '...'
-            : thread.anchor.quote}"
-        </div>
-      )}
       {(!thread.resolved || isExpanded) && (
         <>
           <CommentEntry
@@ -361,40 +327,52 @@ function CommentThread({
           ))}
         </>
       )}
+      {/* Thread action icons - appear on hover */}
+      <div className="thread-actions">
+        <button
+          className="btn-icon"
+          title="Reply"
+          onClick={e => {
+            e.stopPropagation();
+            setShowReply(!showReply);
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+          </svg>
+        </button>
+        <button
+          className="btn-icon"
+          title={thread.resolved ? 'Reopen' : 'Resolve'}
+          onClick={e => {
+            e.stopPropagation();
+            onResolve();
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Collapse button - bottom right */}
+      {onCollapse && (
+        <button
+          className="btn-icon collapse-btn"
+          title="Collapse"
+          onClick={e => {
+            e.stopPropagation();
+            onCollapse();
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
+          </svg>
+        </button>
+      )}
+
       {(!thread.resolved || isExpanded) && (
         <>
-          <div className="comment-actions">
-            <button
-              className="btn btn-text"
-              onClick={e => {
-                e.stopPropagation();
-                setShowReply(!showReply);
-              }}
-            >
-              Reply
-            </button>
-            <button
-              className="btn btn-text"
-              onClick={e => {
-                e.stopPropagation();
-                onResolve();
-              }}
-            >
-              {thread.resolved ? 'Reopen' : 'Resolve'}
-            </button>
-            {onCollapse && (
-              <button
-                className="btn btn-text btn-collapse"
-                onClick={e => {
-                  e.stopPropagation();
-                  onCollapse();
-                }}
-                title="Collapse"
-              >
-                &#9652;
-              </button>
-            )}
-          </div>
           {showReply && (
             <div className="reply-form" onClick={e => e.stopPropagation()}>
               <input
@@ -436,11 +414,6 @@ function CommentEntry({
   const [editText, setEditText] = useState(comment.body);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const time = new Date(comment.created_at + 'Z').toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
   const handleSaveEdit = async () => {
     if (!editText.trim() || editText.trim() === comment.body) {
       setIsEditing(false);
@@ -475,38 +448,70 @@ function CommentEntry({
 
   return (
     <div className="comment-entry">
-      <div className="comment-author">
-        {comment.user.avatar_url && (
-          <img src={comment.user.avatar_url} alt="" referrerPolicy="no-referrer" />
-        )}
-        <span className="name">{comment.user.display_name}</span>
-        <span className="time">{time}</span>
-        {comment.edited_at && <span className="edited">(edited)</span>}
-        {canModify && !isEditing && (
-          <span className="comment-modify-actions">
-            <button
-              className="btn-icon"
-              title="Edit"
-              onClick={e => {
-                e.stopPropagation();
-                setIsEditing(true);
-                setEditText(comment.body);
-              }}
-            >
-              &#9998;
-            </button>
-            <button
-              className="btn-icon btn-delete"
-              title="Delete"
-              onClick={e => {
-                e.stopPropagation();
-                handleDelete();
-              }}
-            >
-              &times;
-            </button>
-          </span>
-        )}
+      <div className="comment-header">
+        <div className="comment-author">
+          {comment.user.avatar_url && (
+            <img src={comment.user.avatar_url} alt="" referrerPolicy="no-referrer" />
+          )}
+          <span className="name">{comment.user.display_name}</span>
+        </div>
+        {/* Entry action icons - appear on hover */}
+        <div className="entry-actions">
+          {canModify && !isEditing && (
+            <>
+              <button
+                className="btn-icon"
+                title="Edit"
+                onClick={e => {
+                  e.stopPropagation();
+                  setIsEditing(true);
+                  setEditText(comment.body);
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                </svg>
+              </button>
+              <button
+                className="btn-icon btn-delete"
+                title="Delete"
+                onClick={e => {
+                  e.stopPropagation();
+                  handleDelete();
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+              </button>
+            </>
+          )}
+          <button
+            className="btn-icon"
+            title="Add reaction"
+            onClick={e => {
+              e.stopPropagation();
+              setShowEmojiPicker(!showEmojiPicker);
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+            </svg>
+          </button>
+          {showEmojiPicker && (
+            <div className="emoji-picker">
+              {EMOJI_OPTIONS.map(emoji => (
+                <button
+                  key={emoji}
+                  className="emoji-option"
+                  onClick={() => handleReact(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {isEditing ? (
         <div className="edit-form" onClick={e => e.stopPropagation()}>
@@ -552,28 +557,6 @@ function CommentEntry({
               ))}
             </div>
           )}
-          <div className="add-reaction-wrapper" onClick={e => e.stopPropagation()}>
-            <button
-              className="btn-icon add-reaction"
-              title="Add reaction"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            >
-              ☺
-            </button>
-            {showEmojiPicker && (
-              <div className="emoji-picker">
-                {EMOJI_OPTIONS.map(emoji => (
-                  <button
-                    key={emoji}
-                    className="emoji-option"
-                    onClick={() => handleReact(emoji)}
-                  >
-                    {emoji}
-                    </button>
-                  ))}
-                </div>
-              )}
-          </div>
         </>
       )}
     </div>

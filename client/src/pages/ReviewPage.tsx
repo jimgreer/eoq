@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import type { TextAnchor } from 'shared';
 import { api } from '../api/client';
@@ -9,6 +9,10 @@ import { CommentSidebar } from '../components/CommentSidebar';
 import { SelectionPopover } from '../components/SelectionPopover';
 import { CommentDialog } from '../components/CommentDialog';
 import { ShareDialog } from '../components/ShareDialog';
+
+const DEFAULT_SIDEBAR_WIDTH = 450;
+const MIN_SIDEBAR_WIDTH = 280;
+const MAX_SIDEBAR_WIDTH = 800;
 
 interface SessionData {
   id: string;
@@ -31,6 +35,37 @@ export function ReviewPage() {
   const [mobileTab, setMobileTab] = useState<'doc' | 'comments'>('doc');
   const isNewSession = (location.state as any)?.newSession;
   const [showShareDialog, setShowShareDialog] = useState(false);
+
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const isResizing = useRef(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      setSidebarWidth(Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  const handleResizeStart = useCallback(() => {
+    isResizing.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   // Selection state
   const [pendingAnchor, setPendingAnchor] = useState<TextAnchor | null>(null);
@@ -110,17 +145,29 @@ export function ReviewPage() {
     }, 50);
   }, []);
 
-  const handleQuoteClick = useCallback((threadId: string) => {
-    setActiveThreadId(threadId);
-    setMobileTab('doc');
-    // Scroll to the highlight in the document after tab switch
+  // Scroll to highlight in document when clicking a thread
+  const scrollToHighlight = useCallback((threadId: string) => {
     setTimeout(() => {
       const mark = document.querySelector(`mark.comment-highlight[data-thread-id="${threadId}"]`);
       if (mark) {
-        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const rect = mark.getBoundingClientRect();
+        const docPanel = document.querySelector('.document-panel');
+        const panelRect = docPanel?.getBoundingClientRect();
+        // Check if mark is visible within the document panel
+        const inViewport = panelRect &&
+          rect.top >= panelRect.top &&
+          rect.bottom <= panelRect.bottom;
+        if (!inViewport) {
+          mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
     }, 50);
   }, []);
+
+  const handleThreadClick = useCallback((threadId: string) => {
+    setActiveThreadId(threadId);
+    scrollToHighlight(threadId);
+  }, [scrollToHighlight]);
 
 
   // Clear popover on click outside
@@ -202,19 +249,23 @@ export function ReviewPage() {
             onHighlightClick={handleHighlightClick}
           />
         </div>
+        <div
+          className="resize-handle"
+          onMouseDown={handleResizeStart}
+        />
         <CommentSidebar
           threads={threads}
           activeThreadId={activeThreadId}
           currentUserId={user?.id}
-          onThreadClick={setActiveThreadId}
+          onThreadClick={handleThreadClick}
           onReply={handleReply}
           onResolve={resolveComment}
           onEdit={editComment}
           onDelete={deleteComment}
           onReact={toggleReaction}
-          onQuoteClick={handleQuoteClick}
           onAddTestComments={() => addTestCommentsFromOther(session.html_content)}
           className={mobileTab !== 'comments' ? 'mobile-hidden' : ''}
+          style={{ width: sidebarWidth }}
         />
       </div>
 
