@@ -56,6 +56,29 @@ export function CommentSidebar({
     }
   }, [threads, initialized]);
 
+  // When a thread becomes active (e.g., clicking highlight), auto-expand it
+  const prevActiveThreadId = useRef<string | null>(null);
+  useEffect(() => {
+    console.log('[CommentSidebar] useEffect running:', {
+      activeThreadId,
+      prevActiveThreadId: prevActiveThreadId.current,
+      manuallyCollapsed: [...manuallyCollapsed],
+    });
+    // Only clear collapsed state when activeThreadId changes to a NEW thread
+    if (activeThreadId && activeThreadId !== prevActiveThreadId.current) {
+      console.log('[CommentSidebar] activeThreadId changed to new value');
+      if (manuallyCollapsed.has(activeThreadId)) {
+        console.log('[CommentSidebar] Clearing collapsed state for:', activeThreadId);
+        setManuallyCollapsed(prev => {
+          const next = new Set(prev);
+          next.delete(activeThreadId);
+          return next;
+        });
+      }
+    }
+    prevActiveThreadId.current = activeThreadId;
+  }, [activeThreadId, manuallyCollapsed]);
+
   // Set up IntersectionObserver to track off-screen threads
   useEffect(() => {
     if (!listRef.current) return;
@@ -90,16 +113,23 @@ export function CommentSidebar({
   const useCompactMode = threads.length > COMPACT_THRESHOLD;
 
   const toggleExpanded = useCallback((threadId: string, currentlyExpanded: boolean) => {
+    console.log('[CommentSidebar] toggleExpanded called:', { threadId, currentlyExpanded });
     if (currentlyExpanded) {
       // Collapse: remove from expanded, add to collapsed
+      console.log('[CommentSidebar] Collapsing thread:', threadId);
       setManuallyExpanded(prev => {
         const next = new Set(prev);
         next.delete(threadId);
         return next;
       });
-      setManuallyCollapsed(prev => new Set(prev).add(threadId));
+      setManuallyCollapsed(prev => {
+        const next = new Set(prev).add(threadId);
+        console.log('[CommentSidebar] manuallyCollapsed now:', [...next]);
+        return next;
+      });
     } else {
       // Expand: remove from collapsed, add to expanded
+      console.log('[CommentSidebar] Expanding thread:', threadId);
       setManuallyCollapsed(prev => {
         const next = new Set(prev);
         next.delete(threadId);
@@ -111,17 +141,27 @@ export function CommentSidebar({
 
   // Determine if a thread should be shown expanded
   const shouldShowExpanded = useCallback((thread: Thread): boolean => {
-    // Active thread is always expanded
-    if (thread.id === activeThreadId) return true;
+    // Manual expand/collapse always takes precedence (user explicitly clicked)
+    if (manuallyExpanded.has(thread.id)) {
+      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ true (manuallyExpanded)');
+      return true;
+    }
+    if (manuallyCollapsed.has(thread.id)) {
+      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ false (manuallyCollapsed)');
+      return false;
+    }
 
-    // Manually expanded threads stay expanded
-    if (manuallyExpanded.has(thread.id)) return true;
-
-    // Manually collapsed threads stay collapsed
-    if (manuallyCollapsed.has(thread.id)) return false;
+    // Active thread is expanded by default
+    if (thread.id === activeThreadId) {
+      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ true (activeThread)');
+      return true;
+    }
 
     // Your own comments always show expanded
-    if (thread.user_id === currentUserId) return true;
+    if (thread.user_id === currentUserId) {
+      console.log('[shouldShowExpanded]', thread.id.slice(0, 8), '→ true (ownComment)');
+      return true;
+    }
 
     // Resolved threads have their own collapse logic
     if (thread.resolved) return false;
