@@ -15,7 +15,6 @@ interface Props {
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
   onReact: (commentId: string, emoji: string) => Promise<boolean>;
-  onAddTestComments?: () => void;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -32,7 +31,6 @@ export function CommentSidebar({
   onEdit,
   onDelete,
   onReact,
-  onAddTestComments,
   className,
   style,
 }: Props) {
@@ -168,15 +166,6 @@ export function CommentSidebar({
           />
           Show resolved ({resolvedCount})
         </label>
-        {onAddTestComments && (
-          <button
-            className="btn btn-text btn-sm"
-            onClick={onAddTestComments}
-            style={{ fontSize: 11 }}
-          >
-            +6 test
-          </button>
-        )}
       </div>
       <div className="comment-list" ref={listRef}>
         {visibleThreads.length === 0 && (

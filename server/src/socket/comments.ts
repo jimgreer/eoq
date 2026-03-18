@@ -1,22 +1,82 @@
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db.js';
+import { checkDriveAccess } from '../services/drivePermissions.js';
+
+// Track which sessions each socket has verified access to
+const socketSessionAccess = new WeakMap<Socket, Set<string>>();
+
+/**
+ * Verify user has access to a session.
+ * Access is granted if:
+ * 1. User is the session creator, OR
+ * 2. User has access to the linked Google Doc
+ */
+async function verifySessionAccess(
+  userId: number,
+  userEmail: string,
+  sessionId: string
+): Promise<boolean> {
+  const session = db.prepare(
+    'SELECT created_by, google_doc_id FROM review_sessions WHERE id = ?'
+  ).get(sessionId) as { created_by: number; google_doc_id: string } | undefined;
+
+  if (!session) {
+    return false;
+  }
+
+  // Creator always has access
+  if (session.created_by === userId) {
+    return true;
+  }
+
+  // Check Drive access
+  const { hasAccess } = await checkDriveAccess(
+    session.created_by,
+    userEmail,
+    session.google_doc_id
+  );
+
+  return hasAccess;
+}
 
 export function setupCommentHandlers(io: Server, socket: Socket) {
   const user = (socket.request as any).user;
   if (!user) return;
 
-  socket.on('session:join', (sessionId: string) => {
+  // Initialize session access tracking for this socket
+  socketSessionAccess.set(socket, new Set());
+
+  socket.on('session:join', async (sessionId: string) => {
+    const hasAccess = await verifySessionAccess(user.id, user.email, sessionId);
+    if (!hasAccess) {
+      socket.emit('error', { message: 'Access denied to this session' });
+      return;
+    }
+
+    // Track that this socket has verified access to this session
+    socketSessionAccess.get(socket)?.add(sessionId);
     socket.join(`session:${sessionId}`);
   });
 
   socket.on('session:leave', (sessionId: string) => {
+    socketSessionAccess.get(socket)?.delete(sessionId);
     socket.leave(`session:${sessionId}`);
   });
+
+  // Helper to check if socket has verified access to a session
+  const hasSessionAccess = (sessionId: string): boolean => {
+    return socketSessionAccess.get(socket)?.has(sessionId) ?? false;
+  };
 
   socket.on('comment:create', (data, callback) => {
     try {
       const { session_id, parent_id, body, anchor } = data;
+
+      // Verify socket has access to this session
+      if (!hasSessionAccess(session_id)) {
+        return callback({ ok: false, error: 'Access denied to this session' });
+      }
 
       if (!body?.trim()) {
         return callback({ ok: false, error: 'Comment body is required' });
@@ -92,6 +152,11 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
         return callback({ ok: false, error: 'Comment not found' });
       }
 
+      // Verify socket has access to this session
+      if (!hasSessionAccess(comment.session_id)) {
+        return callback({ ok: false, error: 'Access denied to this session' });
+      }
+
       db.prepare('UPDATE comments SET resolved = ? WHERE id = ?').run(
         resolved ? 1 : 0,
         comment_id
@@ -119,6 +184,11 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
 
       if (!comment) {
         return callback({ ok: false, error: 'Comment not found' });
+      }
+
+      // Verify socket has access to this session
+      if (!hasSessionAccess(comment.session_id)) {
+        return callback({ ok: false, error: 'Access denied to this session' });
       }
 
       if (comment.user_id !== user.id) {
@@ -154,6 +224,11 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
 
       if (!comment) {
         return callback({ ok: false, error: 'Comment not found' });
+      }
+
+      // Verify socket has access to this session
+      if (!hasSessionAccess(comment.session_id)) {
+        return callback({ ok: false, error: 'Access denied to this session' });
       }
 
       if (comment.user_id !== user.id) {
@@ -193,6 +268,11 @@ export function setupCommentHandlers(io: Server, socket: Socket) {
 
       if (!comment) {
         return callback({ ok: false, error: 'Comment not found' });
+      }
+
+      // Verify socket has access to this session
+      if (!hasSessionAccess(comment.session_id)) {
+        return callback({ ok: false, error: 'Access denied to this session' });
       }
 
       // Check if user already reacted with this emoji

@@ -29,7 +29,7 @@ export function ReviewPage() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState<{ googleDocId?: string; error?: string } | null>(null);
-  const { threads, addComment, resolveComment, editComment, deleteComment, toggleReaction, addTestCommentsFromOther } = useComments(sessionId, user?.id, session?.html_content);
+  const { threads, addComment, resolveComment, editComment, deleteComment, toggleReaction } = useComments(sessionId, user?.id, session?.html_content);
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'doc' | 'comments'>('doc');
@@ -263,7 +263,6 @@ export function ReviewPage() {
           onEdit={editComment}
           onDelete={deleteComment}
           onReact={toggleReaction}
-          onAddTestComments={() => addTestCommentsFromOther(session.html_content)}
           className={mobileTab !== 'comments' ? 'mobile-hidden' : ''}
           style={{ width: sidebarWidth }}
         />

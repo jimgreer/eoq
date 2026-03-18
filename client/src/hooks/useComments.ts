@@ -219,53 +219,6 @@ export function useComments(sessionId: string | undefined, currentUserId?: numbe
     });
   }, []);
 
-  // Add test comments from a fake user via API (persisted to database)
-  const addTestCommentsFromOther = useCallback(async (htmlContent?: string) => {
-    if (!sessionId) return;
-
-    // Extract text snippets from the document to use as anchors
-    let quotes: string[] = [];
-    if (htmlContent) {
-      // Parse HTML and extract text from actual content elements
-      const div = document.createElement('div');
-      div.innerHTML = htmlContent;
-
-      // Get text from paragraphs, headings, and list items only
-      const contentElements = div.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th');
-      const textBlocks: string[] = [];
-
-      contentElements.forEach(el => {
-        const text = el.textContent?.trim();
-        // Only include blocks with substantial text (not just whitespace or short fragments)
-        if (text && text.length > 30 && !/^[\s\d.,;:!?-]+$/.test(text)) {
-          textBlocks.push(text);
-        }
-      });
-
-      if (textBlocks.length >= 6) {
-        // Pick 6 blocks spread throughout the document
-        const step = Math.floor(textBlocks.length / 6);
-        for (let i = 0; i < 6; i++) {
-          const block = textBlocks[i * step];
-          if (block) {
-            // Take first 50 chars as the quote
-            quotes.push(block.slice(0, 50).trim());
-          }
-        }
-      } else if (textBlocks.length > 0) {
-        // Use whatever blocks we have
-        quotes = textBlocks.slice(0, 6).map(b => b.slice(0, 50).trim());
-      }
-    }
-
-    try {
-      await api.post(`/sessions/${sessionId}/test-comments`, { quotes });
-      // Comments will be added via WebSocket broadcast
-    } catch (err) {
-      console.error('Failed to create test comments:', err);
-    }
-  }, [sessionId]);
-
   // Parse HTML for sorting - we need the DOM structure to compute anchor positions
   const docContainer = htmlContent ? (() => {
     const div = document.createElement('div');
@@ -325,5 +278,5 @@ export function useComments(sessionId: string | undefined, currentUserId?: numbe
       return posA - posB;
     });
 
-  return { threads, loading, addComment, resolveComment, editComment, deleteComment, toggleReaction, addTestCommentsFromOther };
+  return { threads, loading, addComment, resolveComment, editComment, deleteComment, toggleReaction };
 }
