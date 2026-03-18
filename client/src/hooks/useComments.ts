@@ -266,12 +266,51 @@ export function useComments(sessionId: string | undefined, currentUserId?: numbe
     }
   }, [sessionId]);
 
-  // Extract plain text from HTML for sorting (memoized)
-  const docText = htmlContent ? (() => {
+  // Parse HTML for sorting - we need the DOM structure to compute anchor positions
+  const docContainer = htmlContent ? (() => {
     const div = document.createElement('div');
     div.innerHTML = htmlContent;
-    return div.textContent || '';
-  })() : '';
+    return div;
+  })() : null;
+
+  // Compute document-level offset for an anchor using its CSS selector and start_offset
+  const getAnchorPosition = (anchor: Comment['anchor']): number => {
+    if (!anchor || !docContainer) return Infinity;
+
+    // Find the target element using the CSS selector
+    let targetEl: Element | null = docContainer;
+    if (anchor.css_selector) {
+      targetEl = docContainer.querySelector(anchor.css_selector);
+    }
+
+    if (!targetEl) {
+      // Fallback: search for quote text
+      const text = docContainer.textContent || '';
+      const pos = text.indexOf(anchor.quote);
+      return pos === -1 ? Infinity : pos;
+    }
+
+    // Calculate absolute offset: count characters before this element + start_offset
+    const walker = document.createTreeWalker(docContainer, NodeFilter.SHOW_TEXT);
+    let charCount = 0;
+    let foundElement = false;
+
+    while (walker.nextNode()) {
+      const textNode = walker.currentNode as Text;
+      // Check if this text node is inside our target element
+      if (targetEl.contains(textNode)) {
+        if (!foundElement) {
+          foundElement = true;
+          // Add the start_offset within this element
+          return charCount + (anchor.start_offset || 0);
+        }
+      } else if (!foundElement) {
+        charCount += textNode.textContent?.length || 0;
+      }
+    }
+
+    return Infinity;
+  };
 
   // Group comments into threads (top-level + replies), sorted by document position
   const threads = comments
@@ -281,22 +320,8 @@ export function useComments(sessionId: string | undefined, currentUserId?: numbe
       replies: comments.filter(c => c.parent_id === parent.id),
     }))
     .sort((a, b) => {
-      // Sort by anchor position in document
-      // Comments without anchors go to the bottom
-      if (!a.anchor?.quote && !b.anchor?.quote) return 0;
-      if (!a.anchor?.quote) return 1;
-      if (!b.anchor?.quote) return -1;
-
-      if (!docText) return 0;
-
-      const posA = docText.indexOf(a.anchor.quote);
-      const posB = docText.indexOf(b.anchor.quote);
-
-      // If quote not found, put at end
-      if (posA === -1 && posB === -1) return 0;
-      if (posA === -1) return 1;
-      if (posB === -1) return -1;
-
+      const posA = getAnchorPosition(a.anchor);
+      const posB = getAnchorPosition(b.anchor);
       return posA - posB;
     });
 
