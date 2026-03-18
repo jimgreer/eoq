@@ -215,6 +215,18 @@ export function ReviewPage() {
       <div className="review-subheader">
         <span className="review-session-title">{session.title}</span>
         {!session.is_active && <span className="review-session-closed">Closed</span>}
+        <a
+          href={`https://docs.google.com/document/d/${session.google_doc_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-text btn-doc-link"
+          title="Open in Google Docs"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+          </svg>
+          Open Google Doc
+        </a>
         <button
           className="btn btn-secondary btn-share"
           onClick={() => setShowShareDialog(true)}

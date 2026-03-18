@@ -443,6 +443,7 @@ body {
   background: #fff;
   position: sticky;
   top: 0;
+  z-index: 20;
 }
 
 .show-resolved-toggle {
@@ -950,9 +951,27 @@ body {
   text-decoration: none;
 }
 
+/* Doc link in subheader */
+.btn-doc-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: #5f6368;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.btn-doc-link:hover {
+  color: #1a73e8;
+}
+
+.btn-doc-link svg {
+  flex-shrink: 0;
+}
+
 /* Share button in subheader */
 .btn-share {
-  margin-left: auto;
   padding: 4px 12px;
   font-size: 13px;
 }
