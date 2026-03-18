@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { GoogleDocPicker } from '../components/GoogleDocPicker';
 
 interface Session {
   id: string;
@@ -35,8 +36,9 @@ export function SessionListPage() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [needsDriveAuth, setNeedsDriveAuth] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'created' | 'activity' | 'title'>('created');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -48,6 +50,13 @@ export function SessionListPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Check if user has Drive token
+  useEffect(() => {
+    if (user && !user.has_drive_token) {
+      setNeedsDriveAuth(true);
+    }
+  }, [user]);
+
   // Initial fetch and debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -56,22 +65,21 @@ export function SessionListPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, fetchSessions]);
 
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) return;
-
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
+  const handleDocSelect = async (docId: string) => {
+    setCreating(true);
+    setError(null);
 
     try {
-      const res = await api.post('/sessions', formData);
-      setFile(null);
+      const res = await api.post('/sessions', { google_doc_id: docId });
       navigate(`/review/${res.data.id}`, { state: { newSession: true } });
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Upload failed');
+      if (err.response?.data?.needsDriveAuth) {
+        setNeedsDriveAuth(true);
+      } else {
+        setError(err.response?.data?.error || 'Failed to create session');
+      }
     } finally {
-      setUploading(false);
+      setCreating(false);
     }
   };
 
@@ -114,25 +122,28 @@ export function SessionListPage() {
       <div className="instructions">
         <h2>How it works</h2>
         <ol>
-          <li>Open your Google Doc and go to <strong>File &rarr; Download &rarr; Web Page (.html, zipped)</strong></li>
-          <li>Upload the zip file below</li>
+          <li>Select a Google Doc from your Drive</li>
           <li>Share the review link with your team</li>
           <li>Everyone can select text in the document and leave comments in real time</li>
         </ol>
       </div>
 
       <h2>New Review Session</h2>
-      <form className="upload-form" onSubmit={handleUpload}>
-        <input
-          type="file"
-          accept=".html,.htm,.zip"
-          onChange={e => setFile(e.target.files?.[0] || null)}
-          required
-        />
-        <button className="btn btn-primary" type="submit" disabled={uploading}>
-          {uploading ? 'Uploading...' : 'Create Session'}
-        </button>
-      </form>
+      {error && <div className="error-message">{error}</div>}
+
+      {needsDriveAuth ? (
+        <div className="drive-auth-prompt">
+          <p>To import Google Docs, you need to grant Drive access.</p>
+          <a href="/auth/google/drive?returnUrl=/" className="btn btn-primary">
+            Grant Drive Access
+          </a>
+        </div>
+      ) : (
+        <div className="picker-section">
+          <GoogleDocPicker onSelect={handleDocSelect} disabled={creating} />
+          {creating && <span className="creating-status">Creating session...</span>}
+        </div>
+      )}
 
       {sessions.length > 0 && (
         <>

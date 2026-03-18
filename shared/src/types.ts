@@ -5,6 +5,7 @@ export interface User {
   display_name: string;
   avatar_url: string | null;
   is_admin: boolean;
+  has_drive_token: boolean;
 }
 
 export interface ReviewSession {

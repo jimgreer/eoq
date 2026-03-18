@@ -5,25 +5,6 @@ import { config } from '../config.js';
 const CACHE_MINUTES = 5;
 
 /**
- * Extract a Google Doc ID from a URL.
- * Handles: docs.google.com/document/d/{ID}/...
- *          drive.google.com/file/d/{ID}/...
- *          or a bare doc ID
- */
-export function extractGoogleDocId(input: string): string | null {
-  const trimmed = input.trim();
-
-  // Try URL patterns
-  const match = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-
-  // If it looks like a bare ID (alphanumeric, dashes, underscores, 20+ chars)
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed)) return trimmed;
-
-  return null;
-}
-
-/**
  * Refresh a user's access token using their refresh token.
  */
 async function refreshAccessToken(userId: number): Promise<string> {
@@ -56,7 +37,7 @@ async function refreshAccessToken(userId: number): Promise<string> {
 /**
  * Get an access token for a user, refreshing if needed.
  */
-async function getAccessToken(userId: number): Promise<string | null> {
+export async function getAccessToken(userId: number): Promise<string | null> {
   const user = db.prepare('SELECT access_token, refresh_token FROM users WHERE id = ?').get(userId) as any;
   if (!user?.refresh_token) {
     return null;
@@ -107,6 +88,69 @@ export async function checkDriveAccess(
   ).run(readerEmail.toLowerCase(), googleDocId, hasAccess ? 1 : 0);
 
   return { hasAccess, creatorNeedsDriveAuth: false };
+}
+
+/**
+ * Export a Google Doc as HTML.
+ * Returns the HTML content and title.
+ */
+export async function exportGoogleDoc(
+  userId: number,
+  googleDocId: string
+): Promise<{ html: string; title: string } | { error: string; needsDriveAuth?: boolean }> {
+  const accessToken = await getAccessToken(userId);
+  if (!accessToken) {
+    return { error: 'Drive access required', needsDriveAuth: true };
+  }
+
+  // First, get the doc metadata for the title
+  const metaRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${googleDocId}?fields=name`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!metaRes.ok) {
+    if (metaRes.status === 404) {
+      return { error: 'Google Doc not found' };
+    }
+    if (metaRes.status === 403) {
+      return { error: 'You do not have access to this Google Doc' };
+    }
+    return { error: `Failed to fetch doc metadata: ${metaRes.status}` };
+  }
+
+  const meta = await metaRes.json() as any;
+  const title = meta.name || 'Untitled Document';
+
+  // Export the doc as HTML
+  const exportRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${googleDocId}/export?mimeType=text/html`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!exportRes.ok) {
+    const errorBody = await exportRes.text();
+    console.error(`Export failed: ${exportRes.status}`, errorBody);
+
+    // Check if it's a file type that can't be exported
+    if (exportRes.status === 403) {
+      try {
+        const errorJson = JSON.parse(errorBody);
+        const reason = errorJson.error?.errors?.[0]?.reason;
+        if (reason === 'exportSizeLimitExceeded') {
+          return { error: 'Document is too large to export. Try a smaller document.' };
+        }
+        if (reason === 'fileNotExportable') {
+          return { error: 'This file type cannot be exported. Please use a Google Doc.' };
+        }
+      } catch {}
+      return { error: 'Cannot export this document. Make sure it is a Google Doc.' };
+    }
+    return { error: `Failed to export doc: ${exportRes.status}` };
+  }
+
+  const html = await exportRes.text();
+  return { html, title };
 }
 
 /**

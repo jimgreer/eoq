@@ -15,6 +15,7 @@ interface SessionData {
   title: string;
   html_content: string;
   is_active: boolean;
+  google_doc_id: string;
 }
 
 export function ReviewPage() {
@@ -229,11 +230,11 @@ export function ReviewPage() {
         />
       )}
 
-      {showShareDialog && user && (
+      {showShareDialog && (
         <ShareDialog
           sessionId={sessionId!}
           sessionTitle={session.title}
-          currentUserEmail={user.email}
+          googleDocId={session.google_doc_id}
           onClose={() => setShowShareDialog(false)}
         />
       )}

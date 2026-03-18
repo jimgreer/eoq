@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import passport from 'passport';
 import { config } from '../config.js';
+import { getAccessToken } from '../services/drivePermissions.js';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ router.get(
       scope: [
         'profile',
         'email',
-        'https://www.googleapis.com/auth/drive.metadata.readonly',
+        'https://www.googleapis.com/auth/drive.readonly',
       ],
       accessType: 'offline',
       prompt: 'consent',
@@ -73,6 +74,25 @@ router.get('/me', (req, res) => {
     is_admin: user.is_admin,
     has_drive_token: !!user.refresh_token,
   });
+});
+
+// Get access token for Google Picker (requires Drive auth)
+router.get('/picker-token', async (req, res) => {
+  if (!req.isAuthenticated?.() || !req.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const user = req.user as any;
+  const accessToken = await getAccessToken(user.id);
+
+  if (!accessToken) {
+    return res.status(403).json({
+      error: 'Drive access required',
+      needsDriveAuth: true,
+    });
+  }
+
+  res.json({ accessToken });
 });
 
 router.post('/logout', (req, res) => {
