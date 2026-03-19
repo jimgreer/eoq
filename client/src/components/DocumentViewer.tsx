@@ -92,20 +92,16 @@ export function DocumentViewer({
 
     const handleMouseUp = () => {
       const selection = window.getSelection();
-      console.log('[DocViewer] mouseup, selection:', selection?.toString()?.slice(0, 50));
       if (!selection || selection.isCollapsed || !selection.rangeCount) {
-        console.log('[DocViewer] no valid selection');
         return;
       }
 
       const range = selection.getRangeAt(0);
       if (!container.contains(range.commonAncestorContainer)) {
-        console.log('[DocViewer] selection outside container');
         return;
       }
 
       const anchor = serializeSelection(range, container);
-      console.log('[DocViewer] anchor:', anchor);
       if (!anchor) return;
 
       const rect = range.getBoundingClientRect();

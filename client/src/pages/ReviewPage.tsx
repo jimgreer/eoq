@@ -141,19 +141,21 @@ export function ReviewPage() {
     setMobileTab('comments');
     setTimeout(() => {
       const el = document.querySelector(`.comment-thread[data-thread-id="${threadId}"]`);
-      const list = document.querySelector('.comment-list');
+      const sidebar = document.querySelector('.comment-sidebar');
       const header = document.querySelector('.sidebar-header');
-      if (el && list) {
+      if (el && sidebar) {
         const headerHeight = header?.getBoundingClientRect().height || 0;
         const elRect = el.getBoundingClientRect();
-        const listRect = list.getBoundingClientRect();
-        // Check if element is fully visible below the header
-        const visibleTop = listRect.top + headerHeight;
-        const visibleBottom = listRect.bottom;
+        const sidebarRect = sidebar.getBoundingClientRect();
+        // Check if element is fully visible below the sticky header
+        const visibleTop = sidebarRect.top + headerHeight;
+        const visibleBottom = sidebarRect.bottom;
         if (elRect.top < visibleTop || elRect.bottom > visibleBottom) {
-          // Scroll so element is below the header with some padding
-          const scrollTop = list.scrollTop + (elRect.top - visibleTop) - 8;
-          list.scrollTo({ top: scrollTop, behavior: 'smooth' });
+          // Calculate element's offset within the scroll container
+          const elementOffsetInSidebar = (elRect.top - sidebarRect.top) + sidebar.scrollTop;
+          // Scroll so element is below the header with 8px padding
+          const targetScroll = elementOffsetInSidebar - headerHeight - 8;
+          sidebar.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
         }
       }
     }, 50);
