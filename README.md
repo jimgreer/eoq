@@ -24,7 +24,6 @@ A real-time collaborative document review tool designed for large groups (250+ c
 - **Backend**: Node.js, Express, Socket.IO
 - **Database**: SQLite (via better-sqlite3)
 - **Auth**: Google OAuth 2.0
-- **Deployment**: Docker, Fly.io
 
 ## Local development
 
