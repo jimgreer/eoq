@@ -392,6 +392,29 @@ body {
   user-select: text;
 }
 
+/* Fix Google Docs export list spacing - they add excessive padding on items */
+.doc-content li {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* But we do need spacing before/after the list itself */
+.doc-content ul,
+.doc-content ol {
+  margin-top: 8pt !important;
+  margin-bottom: 8pt !important;
+}
+
+/* Tone down Google Docs tab/title headings - they're enormous by default */
+.doc-content .title,
+.doc-content .title span {
+  font-size: 18pt !important;
+  padding-top: 16pt !important;
+  padding-bottom: 8pt !important;
+  border-bottom: 1px solid #dadce0;
+  margin-bottom: 12pt;
+}
+
 .resize-handle {
   width: 6px;
   cursor: col-resize;
