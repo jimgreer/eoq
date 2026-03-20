@@ -12,6 +12,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config.js';
 import { setupAuth } from './auth/google.js';
+import { csrfProtection } from './auth/middleware.js';
 import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/sessions.js';
 import commentRoutes from './routes/comments.js';
@@ -54,13 +55,14 @@ setupAuth();
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Disable caching for API routes
+// Disable caching for API routes and apply CSRF protection
 app.use('/api', (_req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
   next();
 });
+app.use('/api', csrfProtection);
 
 // Routes
 app.use('/auth', authRoutes);

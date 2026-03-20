@@ -123,7 +123,7 @@ export function SessionListPage() {
         <h2>How it works</h2>
         <ol>
           <li>Select a Google Doc from your Drive</li>
-          <li>Share the review link with your team. Permissions are synced with the Google Doc</li>
+          <li>Share the review link with your team. Permissions are synced with the Google Doc. Doc contents are not synced after the initial import</li>
           <li>Everyone can select text in the document and leave comments in real time</li>
         </ol>
       </div>
